@@ -32,3 +32,4 @@ Samples/Desktop/D3D12HelloWorld/src/HelloVAEncode/*.h264
 
 # vcpkg manifest-mode install tree
 vcpkg_installed/
+/.idea/
