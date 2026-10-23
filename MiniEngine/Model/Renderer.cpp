@@ -483,38 +483,44 @@ void MeshSorter::AddMesh( const Mesh& mesh, float distance,
     bool skinned = (mesh.psoFlags & PSOFlags::kHasSkin) == PSOFlags::kHasSkin;
     uint64_t depthPSO = (skinned ? 2 : 0) + (alphaTest ? 1 : 0);
 
+    // Potentially dangerous way of converting a float to an int. Float must always be positive and int unsigned.
     union float_or_int { float f; uint32_t u; } dist;
     dist.f = Max(distance, 0.0f);
-
+     
+	// Choosing render pass and PSO index based on mesh properties and batch type
+    // Shadow Rendering
 	if (m_BatchType == kShadows)
 	{
 		if (alphaBlend)
 			return;
 
 		key.passID = kZPass;
-		key.psoIdx = depthPSO + 4;
+		key.psoIdx = depthPSO + 4; // Indices 4-7 are for shadow PSOs
         key.key = dist.u;
 		m_SortKeys.push_back(key.value);
 		m_PassCounts[kZPass]++;
 	}
+    // Transparent Meshes Rendering
     else if (mesh.psoFlags & PSOFlags::kAlphaBlend)
     {
         key.passID = kTransparent;
         key.psoIdx = mesh.pso;
-        key.key = ~dist.u;
+		key.key = ~dist.u; // Invert the distance for transparent objects so that they are sorted back-to-front
         m_SortKeys.push_back(key.value);
         m_PassCounts[kTransparent]++;
     }
     else if (SeparateZPass || alphaTest)
-    {
+    {   
+        // Depth Pass
         key.passID = kZPass;
         key.psoIdx = depthPSO;
         key.key = dist.u;
         m_SortKeys.push_back(key.value);
         m_PassCounts[kZPass]++;
 
+        // Colour Pass
         key.passID = kOpaque;
-        key.psoIdx = mesh.pso + 1;
+        key.psoIdx = mesh.pso + 1; // Colour rendering only where depth matches the pre-pass (No fucking diff at the end of the day)
         key.key = dist.u;
         m_SortKeys.push_back(key.value);
         m_PassCounts[kOpaque]++;
@@ -522,7 +528,7 @@ void MeshSorter::AddMesh( const Mesh& mesh, float distance,
     else
     {
         key.passID = kOpaque;
-        key.psoIdx = mesh.pso;
+        key.psoIdx = mesh.pso; // Normal colour rendering with depth testing/writing
         key.key = dist.u;
         m_SortKeys.push_back(key.value);
         m_PassCounts[kOpaque]++;
@@ -547,9 +553,9 @@ void MeshSorter::RenderMeshes(
 
     Renderer::UpdateGlobalDescriptors();
 
-    context.SetRootSignature(m_RootSig);
-    context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer());
+	context.SetRootSignature(m_RootSig); // Define how the shaders will access resources (textures, buffers, etc.)
+	context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // Configures input geometry as triangle lists
+    context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer()); // Makes descriptor heaps available for shader resource bindings
     context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, s_SamplerHeap.GetHeapPointer());
 
     // Set common textures
@@ -562,6 +568,7 @@ void MeshSorter::RenderMeshes(
     globals.IBLBias = s_SpecularIBLBias;
 	context.SetDynamicConstantBufferView(kCommonCBV, sizeof(GlobalConstants), &globals);
 
+    // Configuring render targets and viewport
 	if (m_BatchType == kShadows)
 	{
 		context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE, true);
@@ -608,6 +615,19 @@ void MeshSorter::RenderMeshes(
 		}
 	}
 
+    // Process all rendering passes up to and including the specified pass.
+    // m_CurrentPass is initially set to kZPass by the constructor.
+    //
+    // In ModelViewer, RenderMeshes() is called three times:
+    // 1. kZPass:       Processes the depth pass, then advances to kOpaque.
+    // 2. kOpaque:      Processes the opaque pass, then advances to kTransparent.
+    // 3. kTransparent: Processes the transparent pass, then advances to the next pass.
+    //
+    // Since m_CurrentPass retains its value between calls, each pass is processed
+    // only once. Passes with no meshes (passCount == 0) are skipped.
+    //
+    // The loop therefore resumes where the previous RenderMeshes() call stopped,
+    // rather than starting from kZPass every time.
     for ( ; m_CurrentPass <= pass; m_CurrentPass = (DrawPass)(m_CurrentPass + 1))
     {
         const uint32_t passCount = m_PassCounts[m_CurrentPass];
@@ -616,6 +636,7 @@ void MeshSorter::RenderMeshes(
 
 		if (m_BatchType == kDefault)
 		{
+            // Current pass configuration
 			switch (m_CurrentPass)
 			{
 			case kZPass:
@@ -647,15 +668,28 @@ void MeshSorter::RenderMeshes(
         context.SetViewportAndScissor(m_Viewport, m_Scissor);
         context.FlushResourceBarriers();
 
+		// If m_CurrentPass is kOpaque and m_CurrentDraw is 2, and there are 3 opaque entries, then lastDraw will be 5.  The loop will process indices 2, 3 and 4.
         const uint32_t lastDraw = m_CurrentDraw + passCount;
 
+        // Process the meshes belonging to the current rendering pass.
+        // m_CurrentDraw is initially set to 0 by the constructor.
+        //
+        // m_CurrentDraw tracks the current position in the sorted mesh queue (m_SortKeys).
+        // passCount tells us how many draw entries belong to the current pass.
+        // lastDraw marks the end of those entries.
+        // 
+        // Since m_CurrentDraw retains its value between RenderMeshes() calls,
+        // each call continues from where the previous one stopped.
         while (m_CurrentDraw < lastDraw)
         {
+            // Retrieve the specific mesh associated with the sort key.
             SortKey key;
             key.value = m_SortKeys[m_CurrentDraw];
             const SortObject& object = m_SortObjects[key.objectIdx];
             const Mesh& mesh = *object.mesh;
 
+			// Binds different mesh and material resources to the pipeline for each draw call.  
+            // Each mesh can have its own vertex/index buffers, constant buffers, and textures.
             context.SetConstantBuffer(kMeshConstants, object.meshCBV);
             context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
             context.SetDescriptorTable(kMaterialSRVs, s_TextureHeap[mesh.srvTable]);
@@ -665,8 +699,12 @@ void MeshSorter::RenderMeshes(
                 ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
                 context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
             }
+
+            // Each sort key can reference a different PSO, meaning meshes can use different shader configurations 
+            // and pipeline states without requiring a separate switch for every mesh.
             context.SetPipelineState(sm_PSOs[key.psoIdx]);
 
+            // Selects different vertex data depending on the current pass.
             if (m_CurrentPass == kZPass)
             {
                 bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
@@ -680,8 +718,10 @@ void MeshSorter::RenderMeshes(
                 context.SetVertexBuffer(0, {object.bufferPtr + mesh.vbOffset, mesh.vbSize, mesh.vbStride});
             }
 
+			// Binds the index buffer for the current mesh, allowing the GPU to correctly interpret the vertex data and draw the mesh geometry.
             context.SetIndexBuffer({object.bufferPtr + mesh.ibOffset, mesh.ibSize, (DXGI_FORMAT)mesh.ibFormat});
 
+			// Executes the draw call for the current mesh, using the specified number of indices and starting positions.
             for (uint32_t i = 0; i < mesh.numDraws; ++i)
                 context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
 

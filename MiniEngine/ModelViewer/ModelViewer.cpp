@@ -226,6 +226,7 @@ void ModelViewer::Update( float deltaT )
 
     m_ModelInst.Update(gfxContext, deltaT);
 
+    // Submits updated resources to the GPU
     gfxContext.Finish();
 
     // We use viewport offsets to jitter sample positions from frame to frame (for TAA.)
@@ -253,10 +254,12 @@ void ModelViewer::RenderScene( void )
 {
     GraphicsContext& gfxContext = GraphicsContext::Begin(L"Scene Render");
 
+    // Retrieves the temporal frame index and previously configured viewport/scissor rectangle.
     uint32_t FrameIndex = TemporalEffects::GetFrameIndexMod2();
     const D3D12_VIEWPORT& viewport = m_MainViewport;
     const D3D12_RECT& scissor = m_MainScissor;
 
+	// Update particle effects
     ParticleEffectManager::Update(gfxContext.GetComputeContext(), Graphics::GetFrameTime());
 
     if (m_ModelInst.IsNull())
@@ -275,6 +278,8 @@ void ModelViewer::RenderScene( void )
 
         Vector3 SunDirection = Normalize(Vector3( costheta * cosphi, sinphi, sintheta * cosphi ));
         Vector3 ShadowBounds = Vector3(m_ModelInst.GetRadius());
+
+        // Configures the shadow camera, which views the scene from the sun's direction.
         //m_SunShadowCamera.UpdateMatrix(-SunDirection, m_ModelInst.GetCenter(), ShadowBounds,
         m_SunShadowCamera.UpdateMatrix(-SunDirection, Vector3(0, -500.0f, 0), Vector3(5000, 3000, 3000),
             (uint32_t)g_ShadowBuffer.GetWidth(), (uint32_t)g_ShadowBuffer.GetHeight(), 16);
@@ -297,6 +302,7 @@ void ModelViewer::RenderScene( void )
 		sorter.SetDepthStencilTarget(g_SceneDepthBuffer);
 		sorter.AddRenderTarget(g_SceneColorBuffer);
 
+		// CPU-side frustum culling and queue visible meshes for rendering.
         m_ModelInst.Render(sorter);
 
         sorter.Sort();
@@ -306,6 +312,7 @@ void ModelViewer::RenderScene( void )
             sorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals);
         }
 
+        // Render SSAO
         SSAO::Render(gfxContext, m_Camera);
 
         if (!SSAO::DebugDraw)
@@ -313,6 +320,7 @@ void ModelViewer::RenderScene( void )
             ScopedTimer _outerprof(L"Main Render", gfxContext);
 
             {
+                // Render the shadow map from sun's perspective (depth-only).
                 ScopedTimer _prof(L"Sun Shadow Map", gfxContext);
 
                 MeshSorter shadowSorter(MeshSorter::kShadows);
@@ -325,6 +333,7 @@ void ModelViewer::RenderScene( void )
                 shadowSorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals);
             }
 
+            // Main colour rendering.
             gfxContext.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, true);
             gfxContext.ClearColor(g_SceneColorBuffer);
 

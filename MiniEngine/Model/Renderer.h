@@ -79,8 +79,8 @@ namespace Renderer
 			m_Camera = nullptr;
 			m_Viewport = {};
 			m_Scissor = {};
-			m_NumRTVs = 0;
-			m_DSV = nullptr;
+			m_NumRTVs = 0; // Number of render target views
+			m_DSV = nullptr; // Depth stencil view
 			m_SortObjects.clear();
 			m_SortKeys.clear();
 			std::memset(m_PassCounts, 0, sizeof(m_PassCounts));
@@ -121,10 +121,10 @@ namespace Renderer
                 uint64_t value;
                 struct
                 {
-                    uint64_t objectIdx : 16;
-                    uint64_t psoIdx : 12;
-                    uint64_t key : 32;
-                    uint64_t passID : 4;
+					uint64_t objectIdx : 16; // Identifies the rendering entry or object associated with the sort key.
+                    uint64_t psoIdx : 12; // Identifies the pipeline state object (PSO) (specifies GPU configuration).
+					uint64_t key : 32; // Represents the sorting key, which is used to determine the order of rendering based on distance or other criteria.
+					uint64_t passID : 4; // Identifies the rendering pass (e.g., ZPass, Opaque, Transparent) for which the sort key is relevant.
                 };
             };
         };
