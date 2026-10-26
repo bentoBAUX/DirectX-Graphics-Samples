@@ -23,7 +23,7 @@ void UploadBuffer::Create( const std::wstring& name, size_t BufferSize )
 
     m_BufferSize = BufferSize;
 
-    // Create an upload buffer.  This is CPU-visible, but it's write combined memory, so
+    // Create an upload buffer.  This is CPU-visible, but it's write combined memory (poorly optimised for CPU reading), so
     // avoid reading back from it.
     D3D12_HEAP_PROPERTIES HeapProps;
     HeapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
@@ -47,7 +47,7 @@ void UploadBuffer::Create( const std::wstring& name, size_t BufferSize )
 
     ASSERT_SUCCEEDED( g_Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &ResourceDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, MY_IID_PPV_ARGS(&m_pResource)) );
-
+    
     m_GpuVirtualAddress = m_pResource->GetGPUVirtualAddress();
 
 #ifdef RELEASE

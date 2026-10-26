@@ -136,6 +136,8 @@ void LoadMaterials(Model& model,
 
 std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool forceRebuild)
 {
+	// Process the file path to determine the .mini file name and the base file name
+	// Mini files are used to store preprocessed model data for faster loading
     const std::wstring miniFileName = Utility::RemoveExtension(filePath) + L".mini";
     const std::wstring fileName = Utility::RemoveBasePath(filePath);
 
@@ -143,10 +145,12 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     struct _stat64 miniFileStat;
     std::ifstream inFile;
     FileHeader header;
-
+    
+	// Check if the source file and .mini file exist
     bool sourceFileMissing = _wstat64(filePath.c_str(), &sourceFileStat) == -1;
     bool miniFileMissing = _wstat64(miniFileName.c_str(), &miniFileStat) == -1;
 
+	// Can't rebuild if the source file is missing
     if (sourceFileMissing)
         forceRebuild = false;
 
@@ -175,6 +179,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         }
     }
 
+	// Rebuild the .mini file if needed
     if (needBuild)
     {
         if (sourceFileMissing)
@@ -183,6 +188,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
             return nullptr;
         }
 
+        // All of the information that needs to be written to a .mini data file
         ModelData modelData;
 
         const std::wstring fileExt = Utility::ToLower(Utility::GetFileExtension(filePath));
@@ -190,8 +196,11 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         if (fileExt == L"gltf" || fileExt == L"glb")
         {
             glTF::Asset asset(filePath);
-            if (!BuildModel(modelData, asset))
-                return nullptr;
+
+            // BuildModel() populates modelData using information from the parsed glTF asset, 
+            // including geometry, materials, scene hierarchy and animation data.
+			if (!BuildModel(modelData, asset)) 
+				return nullptr;
         }
         else if (fileExt == L"h3d")
         {
@@ -206,9 +215,11 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
             return nullptr;
         }
 
+		// Save the processed model data to a .mini file for faster loading in the future.
         if (!SaveModel(miniFileName, modelData))
             return nullptr;
 
+		// Now that the .mini file has been created, open it and reads its header (contains metadata required to reconstruct the Model.)
         inFile = std::ifstream(miniFileName, std::ios::in | std::ios::binary);
         inFile.read((char*)&header, sizeof(FileHeader));
     }
@@ -220,6 +231,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 
     std::wstring basePath = Utility::GetBasePath(filePath);
 
+    // Create a new Model instance using the created .mini file and upload to GPU.
     std::shared_ptr<Model> model(new Model);
 
     model->m_NumNodes = header.numNodes;
@@ -227,18 +239,27 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     model->m_NumMeshes = header.numMeshes;
     model->m_MeshData.reset(new uint8_t[header.meshDataSize]);
 
+	// Create a GPU buffer for the model's geometry data if it exists in the .mini file.
 	if (header.geometrySize > 0)
 	{
 		UploadBuffer modelData;
+
+		// An upload buffer is created to temporarily hold the geometry data before it's copied to the GPU buffer. 
+        // The geometry data is read from the .mini file and mapped into the upload buffer, which is then used to create a GPU buffer for the model's geometry data.
 		modelData.Create(L"Model Data Upload", header.geometrySize);
+
 		inFile.read((char*)modelData.Map(), header.geometrySize);
 		modelData.Unmap();
+
+		// The GPU buffer is created using the data from the upload buffer, 
+        // allowing the model's geometry data to be efficiently accessed by the GPU during rendering.
 		model->m_DataBuffer.Create(L"Model Data", header.geometrySize, 1, modelData);
 	}
 
     inFile.read((char*)model->m_SceneGraph.get(), header.numNodes * sizeof(GraphNode));
     inFile.read((char*)model->m_MeshData.get(), header.meshDataSize);
 
+	// Create a GPU buffer for the model's material constants if they exist in the .mini file.
 	if (header.numMaterials > 0)
 	{
 		UploadBuffer materialConstants;

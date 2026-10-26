@@ -76,9 +76,10 @@ void GpuBuffer::Create( const std::wstring& name, uint32_t NumElements, uint32_t
     HeapProps.CreationNodeMask = 1;
     HeapProps.VisibleNodeMask = 1;
 
+	// Allocate a GPU resource for the buffer.  This will be used as the destination for a copy from the upload buffer.
     ASSERT_SUCCEEDED( 
-        g_Device->CreateCommittedResource( &HeapProps, D3D12_HEAP_FLAG_NONE,
-            &ResourceDesc, m_UsageState, nullptr, MY_IID_PPV_ARGS(&m_pResource)) );
+        g_Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &ResourceDesc, m_UsageState, nullptr, MY_IID_PPV_ARGS(&m_pResource)) 
+    );
 
     m_GpuVirtualAddress = m_pResource->GetGPUVirtualAddress();
 

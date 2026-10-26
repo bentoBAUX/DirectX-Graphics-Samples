@@ -549,6 +549,7 @@ void MeshSorter::RenderMeshes(
     GraphicsContext& context,
     GlobalConstants& globals)
 {
+    // 1. Configure common graphics pipeline state and global shader resources
 	ASSERT(m_DSV != nullptr);
 
     Renderer::UpdateGlobalDescriptors();
@@ -568,7 +569,7 @@ void MeshSorter::RenderMeshes(
     globals.IBLBias = s_SpecularIBLBias;
 	context.SetDynamicConstantBufferView(kCommonCBV, sizeof(GlobalConstants), &globals);
 
-    // Configuring render targets and viewport
+    // 2. Perform batch-specific render target and viewport/scissor setup.
 	if (m_BatchType == kShadows)
 	{
 		context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE, true);
@@ -615,6 +616,7 @@ void MeshSorter::RenderMeshes(
 		}
 	}
 
+    // 3. Process rendering passes and submit draw commands
     // Process all rendering passes up to and including the specified pass.
     // m_CurrentPass is initially set to kZPass by the constructor.
     //
@@ -682,7 +684,7 @@ void MeshSorter::RenderMeshes(
         // each call continues from where the previous one stopped.
         while (m_CurrentDraw < lastDraw)
         {
-            // Retrieve the specific mesh associated with the sort key.
+            // Retrieve the next mesh for render using sort key.
             SortKey key;
             key.value = m_SortKeys[m_CurrentDraw];
             const SortObject& object = m_SortObjects[key.objectIdx];
@@ -723,6 +725,7 @@ void MeshSorter::RenderMeshes(
 
 			// Executes the draw call for the current mesh, using the specified number of indices and starting positions.
             for (uint32_t i = 0; i < mesh.numDraws; ++i)
+
                 context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
 
             ++m_CurrentDraw;
