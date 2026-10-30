@@ -12,8 +12,6 @@
 //             Chuck Walbourn (ATG)
 //
 // This code depends on DirectXTex
-//
-
 #include "MeshConvert.h"
 #include "TextureConvert.h"
 #include "glTF.h"
@@ -73,15 +71,16 @@ static DXGI_FORMAT AccessorFormat(const Accessor& accessor)
 void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, const Math::Matrix4& localToObject )
 {
     ASSERT(inPrim.attributes[0] != nullptr, "Must have POSITION");
-    uint32_t vertexCount = inPrim.attributes[0]->count;
 
+    uint32_t vertexCount = inPrim.attributes[0]->count;
+     
     void* indices = nullptr;
     uint32_t indexCount;
     bool b32BitIndices;
     uint32_t maxIndex = inPrim.maxIndex;
 
     if (inPrim.indices == nullptr)
-    {
+    {   // Generate indices
         ASSERT(inPrim.mode == 4, "Impossible primitive topology when lacking indices");
 
         indexCount = vertexCount * 3;
@@ -96,7 +95,7 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
                 tmp[i] = i;
         }
         else
-        {
+        {   
             b32BitIndices = false;
             outPrim.IB = std::make_shared<std::vector<byte>>(2 * indexCount);
             indices = outPrim.IB->data();
@@ -106,7 +105,7 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
         }
     }
     else
-    {
+    {   // Process existing indices
         switch (inPrim.mode)
         {
         default:
@@ -147,6 +146,8 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
         if (b32BitIndices)
         {
             ASSERT(inPrim.indices->componentType == Accessor::kUnsignedInt);
+
+			// Reorders the indices to improve post-transform vertex cache efficiency
             OptimizeFaces((uint32_t*)inPrim.indices->dataPtr, inPrim.indices->count, (uint32_t*)outPrim.IB->data(), 64);
         }
         else if (inPrim.indices->componentType == Accessor::kUnsignedShort)
@@ -162,6 +163,7 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
 
     ASSERT(maxIndex > 0);
 
+	// Read the vertex data into a temporary buffer and compute normals/tangents if necessary
     const bool HasNormals = inPrim.attributes[glTF::Primitive::kNormal] != nullptr;
     const bool HasTangents = inPrim.attributes[glTF::Primitive::kTangent] != nullptr;
     const bool HasUV0 = inPrim.attributes[glTF::Primitive::kTexcoord0] != nullptr;
@@ -170,6 +172,7 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
     const bool HasWeights = inPrim.attributes[glTF::Primitive::kWeights0] != nullptr;
     const bool HasSkin = HasJoints && HasWeights;
     
+    // Tells VBReader which attributes exist in the source and what their formats are.
     std::vector<D3D12_INPUT_ELEMENT_DESC> InputElements;
     InputElements.push_back({"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, glTF::Primitive::kPosition});
     if (HasNormals)
@@ -224,6 +227,7 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
     position.reset(new XMFLOAT3[vertexCount]);
     normal.reset(new XMFLOAT3[vertexCount]);
 
+    // Extracts positions from the source vertex data into a temporary array.
     ASSERT_SUCCEEDED(vbr.Read(position.get(), "POSITION", 0, vertexCount));
     {
         // Local space bounds
@@ -237,7 +241,8 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
 
         outPrim.m_BBoxLS = AxisAlignedBox(kZero);
         outPrim.m_BBoxOS = AxisAlignedBox(kZero);
-
+        
+		// Compute the bounding sphere and AABB in both local and object space
         for (uint32_t v = 0; v < vertexCount/*maxIndex*/; ++v)
         {
             Vector3 positionLS = Vector3(position[v]);
@@ -256,6 +261,8 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
         ASSERT(outPrim.m_BoundsOS.GetRadius() > 0.0f);
     }
 
+	// Extracts normals and tangents from the source vertex data into a temporary array. 
+    // Otherwise, computes them from the positions and indices.
     if (HasNormals)
     {
         ASSERT_SUCCEEDED(vbr.Read(normal.get(), "NORMAL", 0, vertexCount));
@@ -335,6 +342,7 @@ void OptimizeMesh( Renderer::Primitive& outPrim, const glTF::Primitive& inPrim, 
     }
 
     // Use VBWriter to generate a new, interleaved and compressed vertex buffer
+    // Interleaved: attributes belonging to the same vertex are stored together.
     std::vector<D3D12_INPUT_ELEMENT_DESC> OutputElements;
 
     outPrim.psoFlags = PSOFlags::kHasPosition | PSOFlags::kHasNormal;

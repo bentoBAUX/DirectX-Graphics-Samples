@@ -12,7 +12,7 @@
 //
 
 #pragma once
-
+#include <meshoptimizer.h>
 #include "glTF.h"
 #include "../Core/Math/BoundingSphere.h"
 #include "../Core/Math/BoundingBox.h"
@@ -23,6 +23,12 @@
 namespace Renderer
 {
     using namespace Math;
+
+    struct MeshletsData {
+        std::vector<meshopt_Meshlet> meshlets;
+        std::vector<unsigned int> vertices;
+        std::vector<unsigned char> triangles;
+    };
 
     struct Primitive
     {
@@ -44,6 +50,7 @@ namespace Renderer
             };
         };
         uint16_t vertexStride;
+        MeshletsData meshletsData;
     };
 }
 

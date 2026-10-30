@@ -43,6 +43,69 @@
     <ClCompile Include="Animation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\allocator.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\clusterizer.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\indexanalyzer.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\indexcodec.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\indexgenerator.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\meshletcodec.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\meshletutils.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\opacitymap.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\overdrawoptimizer.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\partition.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\quantization.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\rasterizer.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\remesher.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\simplifier.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\spatialorder.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\stripifier.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\tangentspace.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vcacheoptimizer.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vertexcodec.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vertexfilter.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vfetchoptimizer.cpp">
+      <Filter>Mesh Optimizer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source Files">
@@ -50,6 +113,9 @@
     </Filter>
     <Filter Include="Shaders">
       <UniqueIdentifier>{9169b7c9-f1a7-41d4-9098-58de36da850c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mesh Optimizer">
+      <UniqueIdentifier>{ddf68d36-330e-4b47-aaa9-773169db25a2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -95,6 +161,9 @@
     <ClInclude Include="Animation.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\3rdParty\meshoptimizer\src\meshoptimizer.h">
+      <Filter>Mesh Optimizer</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Common.hlsli">
@@ -109,7 +178,6 @@
     <None Include="Shaders\Lighting.hlsli">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\DefaultVS.hlsl">

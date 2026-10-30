@@ -59,6 +59,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile />
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\3rdParty\meshoptimizer\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
@@ -72,6 +73,7 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\3rdParty\meshoptimizer\src\meshoptimizer.h" />
     <ClInclude Include="Animation.h" />
     <ClInclude Include="ConstantBuffers.h" />
     <ClInclude Include="glTF.h" />
@@ -88,6 +90,27 @@
     <ClInclude Include="TextureConvert.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\allocator.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\clusterizer.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\indexanalyzer.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\indexcodec.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\indexgenerator.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\meshletcodec.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\meshletutils.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\opacitymap.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\overdrawoptimizer.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\partition.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\quantization.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\rasterizer.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\remesher.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\simplifier.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\spatialorder.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\stripifier.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\tangentspace.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vcacheoptimizer.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vertexcodec.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vertexfilter.cpp" />
+    <ClCompile Include="..\3rdParty\meshoptimizer\src\vfetchoptimizer.cpp" />
     <ClCompile Include="Animation.cpp" />
     <ClCompile Include="BuildH3D.cpp" />
     <ClCompile Include="glTF.cpp" />

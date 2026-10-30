@@ -168,6 +168,7 @@ void ModelViewer::Startup( void )
     {
 #ifdef LEGACY_RENDERER
         Sponza::Startup(m_Camera);
+        Renderer::LoadModel(L"Sponza/PBR/sponza2.gltf", true);
 #else
         m_ModelInst = Renderer::LoadModel(L"Sponza/PBR/sponza2.gltf", forceRebuild);
         m_ModelInst.Resize(100.0f * m_ModelInst.GetRadius());
