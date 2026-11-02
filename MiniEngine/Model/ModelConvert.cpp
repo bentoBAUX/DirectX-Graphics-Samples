@@ -49,6 +49,7 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 	assert(prim.primCount % 3 == 0);
 	assert(prim.vertexStride >= 12);
 	assert(prim.VB->size() % prim.vertexStride == 0);
+	assert(prim.IB->size() / (prim.index32 ? 4 : 2) >= prim.primCount);
 
 	size_t maxMeshlets = meshopt_buildMeshletsBound(prim.primCount, maxVertices, maxTriangles);
 	// Utility::Printf("Max Meshlets: %zu\n", maxMeshlets);
@@ -59,23 +60,35 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 	prim.meshletsData.triangles.resize(prim.primCount);
 
 	const float* vertexPosition = reinterpret_cast<const float*>(prim.VB->data());
-	const unsigned int* indices;
+
 	std::vector<unsigned int> indices32;
+	indices32.reserve(prim.primCount);
+
+	const byte* bytes = prim.IB->data();
 
 	// Convert 16-bit indices to 32-bit indices if MiniEngine uses 16-bit for prim.IB->data().
 	if (!prim.index32) {
 		// Utility::Printf("Converting to 32-bit indices...\n");
-		byte* bytes = prim.IB->data();
-
 		for (size_t i = 0; i < prim.primCount; i++) {
 			uint32_t index32 = uint32_t(bytes[i * 2]) + (uint32_t(bytes[i * 2 + 1])<<8);
 			indices32.push_back(index32);
 		}
-		indices = reinterpret_cast<const unsigned int*>(indices32.data());
 	}
 	else {
 		// Utility::Printf("No conversion needed.\n");
-		indices = reinterpret_cast<const unsigned int*>(prim.IB->data());
+		for (size_t i = 0; i < prim.primCount; i++) {
+			uint32_t index32;
+			std::memcpy(&index32, bytes + i * sizeof(uint32_t), sizeof(uint32_t));
+			indices32.push_back(index32);
+		}
+	}
+
+	const unsigned int* indices = indices32.data();
+	 
+	// Validate all indices.
+	for (size_t i = 0; i < prim.primCount; i++)
+	{
+		assert(indices[i] < vertexCount);
 	}
 
 	size_t meshletCount = meshopt_buildMeshlets(prim.meshletsData.meshlets.data(), 
