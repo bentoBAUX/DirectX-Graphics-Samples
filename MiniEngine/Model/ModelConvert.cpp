@@ -70,7 +70,7 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 	if (!prim.index32) {
 		// Utility::Printf("Converting to 32-bit indices...\n");
 		for (size_t i = 0; i < prim.primCount; i++) {
-			uint32_t index32 = uint32_t(bytes[i * 2]) + (uint32_t(bytes[i * 2 + 1])<<8);
+			uint32_t index32 = uint32_t(bytes[i * 2]) + (uint32_t(bytes[i * 2 + 1]) << 8);
 			indices32.push_back(index32);
 		}
 	}
@@ -84,24 +84,37 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 	}
 
 	const unsigned int* indices = indices32.data();
-	 
+
 	// Validate all indices.
 	for (size_t i = 0; i < prim.primCount; i++)
 	{
 		assert(indices[i] < vertexCount);
 	}
 
-	size_t meshletCount = meshopt_buildMeshlets(prim.meshletsData.meshlets.data(), 
-												prim.meshletsData.vertices.data(), 
-												prim.meshletsData.triangles.data(), 
-												indices, 
-												prim.primCount, 
-												vertexPosition, 
-												vertexCount, 
-												prim.vertexStride, 
-												maxVertices, 
-												maxTriangles, 
-												0);
+	size_t meshletCount = meshopt_buildMeshlets(prim.meshletsData.meshlets.data(),
+		prim.meshletsData.vertices.data(),
+		prim.meshletsData.triangles.data(),
+		indices,
+		prim.primCount,
+		vertexPosition,
+		vertexCount,
+		prim.vertexStride,
+		maxVertices,
+		maxTriangles,
+		0);
+
+	// Resize and optimise the buffers.
+	const meshopt_Meshlet& last = prim.meshletsData.meshlets[meshletCount - 1];
+	prim.meshletsData.vertices.resize(last.vertex_offset + last.vertex_count);
+	prim.meshletsData.triangles.resize(last.triangle_offset + last.triangle_count);
+
+	for (size_t i = 0; i < meshletCount; i++) {
+		const meshopt_Meshlet& m = prim.meshletsData.meshlets[i];
+		meshopt_optimizeMeshlet(prim.meshletsData.vertices.data() + m.vertex_offset, 
+			prim.meshletsData.triangles.data() + m.triangle_offset, 
+			m.triangle_count, 
+			m.vertex_count);
+	}
 
 	Utility::Printf("Generated %zu meshlets.\n", meshletCount);
 }
@@ -130,8 +143,8 @@ void Renderer::CompileMesh(
 	std::vector<Primitive> primitives(srcMesh.primitives.size());
 	for (uint32_t i = 0; i < primitives.size(); ++i)
 	{
-		OptimizeMesh(primitives[i], srcMesh.primitives[i], localToObject);
 		GenerateMeshlets(primitives[i]);
+		OptimizeMesh(primitives[i], srcMesh.primitives[i], localToObject);
 		sphereOS = sphereOS.Union(primitives[i].m_BoundsOS);
 		bboxOS.AddBoundingBox(primitives[i].m_BBoxOS);
 	}
@@ -163,6 +176,9 @@ void Renderer::CompileMesh(
 	// Outer loop: Iterate over each group of compatible primitives
 	for (auto& iter : renderMeshes)
 	{
+		// MSP TODO: Extend Mesh to include meshlets.
+		// This functions adds meshes to a list meshList.
+		
 		// Construct Mesh 
 		size_t numDraws = iter.second.size();
 		Mesh* mesh = (Mesh*)malloc(sizeof(Mesh) + sizeof(Mesh::Draw) * (numDraws - 1));
@@ -180,7 +196,7 @@ void Renderer::CompileMesh(
 			ibSize += draw->IB->size();
 			collectiveSphere = collectiveSphere.Union(draw->m_BoundsLS);
 		}
-
+		
 		// Fill in the Mesh structure
 		mesh->bounds[0] = collectiveSphere.GetCenter().GetX();
 		mesh->bounds[1] = collectiveSphere.GetCenter().GetY();
@@ -215,6 +231,8 @@ void Renderer::CompileMesh(
 		uint32_t curVertOffset = 0;
 		uint32_t curIndexOffset = 0;
 
+		// MSP TODO: For every Mesh::Draw, keep existing stuff but also upload generated meshlet descriptors, vertices and indices into the uploadMem.
+		// MSP: uploadMem -> bufferMemory -> .mini (SaveModel() and ModelLoader) -> UploadBuffer -> m_DataBuffer -> MeshShader.
 		// Inner Loop: Prepares the individual draw groups and copies their geometry into the temporary byte buffer.
 		for (auto& draw : iter.second)
 		{
