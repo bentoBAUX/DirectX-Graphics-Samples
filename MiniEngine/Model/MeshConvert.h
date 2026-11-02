@@ -37,9 +37,9 @@ namespace Renderer
         AxisAlignedBox m_BBoxLS;       // local space AABB
         AxisAlignedBox m_BBoxOS;       // object space AABB
         Utility::ByteArray VB;
-        Utility::ByteArray IB;
+        Utility::ByteArray IB;  // IB is a shared pointer to a vector of unsigned chars. Each element is 1B
         Utility::ByteArray DepthVB;
-        uint32_t primCount;
+        uint32_t primCount; // Indices count
         union
         {
             uint32_t hash;

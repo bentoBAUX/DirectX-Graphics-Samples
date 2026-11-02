@@ -40,56 +40,49 @@ static inline Vector3 SafeNormalize(Vector3 x)
 }
 
 void GenerateMeshlets(Renderer::Primitive& prim) {
-	size_t vertex_count = prim.VB->size() / prim.vertexStride;
-	size_t max_vertices = 64;
-	size_t max_triangles = 126;
+	const size_t maxVertices = 64;
+	const size_t maxTriangles = 126;
+	size_t maxMeshlets = meshopt_buildMeshletsBound(prim.primCount, maxVertices, maxTriangles);
+	// Utility::Printf("Max Meshlets: %zu\n", maxMeshlets);
+	size_t vertexCount = prim.VB->size() / prim.vertexStride;
 
-	// Allocate memory for meshletsData
-	size_t max_meshlets = meshopt_buildMeshletsBound(
-		prim.primCount,
-		max_vertices,
-		max_triangles
-	);
+	prim.meshletsData.meshlets.resize(maxMeshlets);
+	prim.meshletsData.vertices.resize(prim.primCount);
+	prim.meshletsData.triangles.resize(prim.primCount);
 
-	prim.meshletsData.meshlets.resize(max_meshlets);
-	prim.meshletsData.vertices.resize(max_meshlets * max_vertices);
-	prim.meshletsData.triangles.resize(max_meshlets * max_triangles * 3);
+	const float* vertexPosition = reinterpret_cast<const float*>(prim.VB->data());
+	const unsigned int* indices;
+	std::vector<unsigned int> indices32;
 
-	const float* positions = reinterpret_cast<const float*>(prim.VB->data());
+	// Convert 16-bit indices to 32-bit indices if MiniEngine uses 16-bit for prim.IB->data().
+	if (!prim.index32) {
+		// Utility::Printf("Converting to 32-bit indices...\n");
+		byte* bytes = prim.IB->data();
 
-	std::vector<uint32_t> indices32(prim.primCount);
-
-	for (size_t i = 0; i < prim.primCount; ++i)
-	{
-		if (prim.index32)
-		{
-			uint32_t index;
-			std::memcpy(&index, prim.IB->data() + i * 4, sizeof(index));
-			indices32[i] = index;
+		for (size_t i = 0; i < prim.primCount; i++) {
+			uint32_t index32 = uint32_t(bytes[i * 2]) + (uint32_t(bytes[i * 2 + 1])<<8);
+			indices32.push_back(index32);
 		}
-		else
-		{
-			uint16_t index;
-			std::memcpy(&index, prim.IB->data() + i * 2, sizeof(index));
-			indices32[i] = index;
-		}
+		indices = reinterpret_cast<const unsigned int*>(indices32.data());
+	}
+	else {
+		// Utility::Printf("No conversion needed.\n");
+		indices = reinterpret_cast<const unsigned int*>(prim.IB->data());
 	}
 
-	size_t meshlet_count = meshopt_buildMeshlets(
-		prim.meshletsData.meshlets.data(),
-		prim.meshletsData.vertices.data(),
-		prim.meshletsData.triangles.data(),
-		indices32.data(),
-		prim.primCount,
-		positions,
-		vertex_count,
-		prim.vertexStride,
-		max_vertices,
-		max_triangles,
-		0.0f
-	);
+	size_t meshletCount = meshopt_buildMeshlets(prim.meshletsData.meshlets.data(), 
+												prim.meshletsData.vertices.data(), 
+												prim.meshletsData.triangles.data(), 
+												indices, 
+												prim.primCount, 
+												vertexPosition, 
+												vertexCount, 
+												prim.vertexStride, 
+												maxVertices, 
+												maxTriangles, 
+												0);
 
-	Utility::Printf("Generated %zu meshlets\n", meshlet_count);
+	Utility::Printf("Generated %zu meshlets.\n", meshletCount);
 }
 
 void Renderer::CompileMesh(
