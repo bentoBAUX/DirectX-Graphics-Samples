@@ -42,6 +42,14 @@ static inline Vector3 SafeNormalize(Vector3 x)
 void GenerateMeshlets(Renderer::Primitive& prim) {
 	const size_t maxVertices = 64;
 	const size_t maxTriangles = 126;
+
+	// Validate assumptions about MiniEngine's primitive.
+	assert(prim.IB && prim.VB);
+	assert(prim.primCount > 0);
+	assert(prim.primCount % 3 == 0);
+	assert(prim.vertexStride >= 12);
+	assert(prim.VB->size() % prim.vertexStride == 0);
+
 	size_t maxMeshlets = meshopt_buildMeshletsBound(prim.primCount, maxVertices, maxTriangles);
 	// Utility::Printf("Max Meshlets: %zu\n", maxMeshlets);
 	size_t vertexCount = prim.VB->size() / prim.vertexStride;
