@@ -70,15 +70,25 @@ struct Mesh
     uint16_t startJoint;    // Flat offset to first joint index
     uint16_t numDraws;      // Number of draw groups
 
-    uint32_t meshletsOffset;            // Starting position of meshlets descriptors in m_GeometryData
-    uint32_t meshletsVertexOffset;      // Starting position of meshlets vertices in m_GeometryData
-    uint32_t meshletsTrianglesOffset;   // Starting position of meshlets triangles in m_GeometryData
+    uint32_t meshletsOffset;            // Starting position of the Mesh's Primitives' meshlets-descriptors in m_GeometryData.
+    uint32_t meshletsVertexOffset;      // Starting position of the Mesh's Primitives' meshlets-vertices in m_GeometryData.
+    uint32_t meshletsTriangleOffset;    // Starting position of the Mesh's Primitives' meshlets-triangles in m_GeometryData.
+    uint32_t meshletsSize;              // Total size of meshlets-descriptors across all the Mesh's Primitives.
+    uint32_t meshletsVertexSize;        // Total size of meshlets-vertices across all the Mesh's Primitives.
+    uint32_t meshletsTriangleSize;      // Total size of meshlets-triangles across all the Mesh's Primitives.
 
     struct Draw
     {
         uint32_t primCount;   // Number of indices = 3 * number of triangles
         uint32_t startIndex;  // Offset to first index in index buffer 
         uint32_t baseVertex;  // Offset to first vertex in vertex buffer
+
+        uint32_t meshletsCount;         // Number of meshlets the current Primitive has.
+        
+        // Positions are relative to the parent Mesh's respective starting positions for each field in m_GeometryData.
+        uint32_t meshletsOffset;        // Starting position of a Primitive's meshlets-descriptors.
+        uint32_t meshletsVertexOffset;  // Starting position of a Primitive's meshlets-vertices.
+        uint32_t meshletsTriangleOffset;// Starting position of a Primitive's meshlets-triangles.
     };
     Draw draw[1];           // Actually 1 or more draws
 };

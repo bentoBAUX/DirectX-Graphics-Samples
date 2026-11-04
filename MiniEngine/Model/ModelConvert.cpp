@@ -110,12 +110,12 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 
 	for (size_t i = 0; i < meshletCount; i++) {
 		const meshopt_Meshlet& m = prim.meshletsData.meshlets[i];
-		meshopt_optimizeMeshlet(prim.meshletsData.vertices.data() + m.vertex_offset, 
-			prim.meshletsData.triangles.data() + m.triangle_offset, 
-			m.triangle_count, 
+		meshopt_optimizeMeshlet(prim.meshletsData.vertices.data() + m.vertex_offset,
+			prim.meshletsData.triangles.data() + m.triangle_offset,
+			m.triangle_count,
 			m.vertex_count);
 	}
-
+	prim.meshletsData.meshlets.resize(meshletCount);
 	Utility::Printf("Generated %zu meshlets.\n", meshletCount);
 }
 
@@ -198,7 +198,7 @@ void Renderer::CompileMesh(
 	{
 		// MSP TODO: Extend Mesh to include meshlets.
 		// This functions adds meshes to a list meshList.
-		
+
 		// Construct Mesh 
 		size_t numDraws = iter.second.size();
 		Mesh* mesh = (Mesh*)malloc(sizeof(Mesh) + sizeof(Mesh::Draw) * (numDraws - 1));
@@ -224,7 +224,7 @@ void Renderer::CompileMesh(
 			groupMeshletsVertexSize += draw->meshletsData.vertices.size() * sizeof(unsigned int);
 			groupMeshletsTriangleSize += Math::AlignUp(draw->meshletsData.triangles.size(), 4);
 		}
-		
+
 		// Fill in the Mesh structure
 		mesh->bounds[0] = collectiveSphere.GetCenter().GetX();
 		mesh->bounds[1] = collectiveSphere.GetCenter().GetY();
@@ -246,7 +246,7 @@ void Renderer::CompileMesh(
 		mesh->meshletsSize = (uint32_t)groupMeshletsSize;
 		mesh->meshletsVertexSize = (uint32_t)groupMeshletsVertexSize;
 		mesh->meshletsTriangleSize = (uint32_t)groupMeshletsTriangleSize;
-		
+
 		mesh->meshletsOffset = (uint32_t)bufferMemory.size() + curMeshletsOffset;
 		mesh->meshletsVertexOffset = (uint32_t)bufferMemory.size() + curMeshletsVertexOffset;
 		mesh->meshletsTriangleOffset = (uint32_t)bufferMemory.size() + curMeshletsTriangleOffset;
@@ -267,11 +267,11 @@ void Renderer::CompileMesh(
 		uint32_t drawIdx = 0;
 		uint32_t curVertOffset = 0;
 		uint32_t curIndexOffset = 0;
-		
+
 		uint32_t curMOffset = 0;
 		uint32_t curMVOffset = 0;
 		uint32_t curMTOffset = 0;
-		
+
 		// MSP TODO: For every Mesh::Draw, keep existing stuff but also upload generated meshlet descriptors, vertices and indices into the uploadMem.
 		// MSP: uploadMem -> bufferMemory (m_GeometryData) -> .mini (SaveModel() and ModelLoader) -> UploadBuffer -> m_DataBuffer -> MeshShader.
 		// Inner Loop: Prepares the individual draw groups and copies their geometry into the temporary byte buffer.
@@ -293,23 +293,33 @@ void Renderer::CompileMesh(
 			size_t mTSize = draw->meshletsData.triangles.size() * sizeof(unsigned char);
 
 			d.meshletsCount = draw->meshletsData.meshlets.size();
+
 			d.meshletsOffset = curMOffset;
 			std::memcpy(uploadMem + curMeshletsOffset + curMOffset, draw->meshletsData.meshlets.data(), mSize);
+			assert(std::memcmp(uploadMem + curMeshletsOffset + curMOffset, draw->meshletsData.meshlets.data(), mSize) == 0);
+
 			d.meshletsVertexOffset = curMVOffset;
 			std::memcpy(uploadMem + curMeshletsVertexOffset + curMVOffset, draw->meshletsData.vertices.data(), mVSize);
+			assert(std::memcmp(uploadMem + curMeshletsVertexOffset + curMVOffset, draw->meshletsData.vertices.data(), mVSize) == 0);
+
 			d.meshletsTriangleOffset = curMTOffset;
 			std::memcpy(uploadMem + curMeshletsTriangleOffset + curMTOffset, draw->meshletsData.triangles.data(), mTSize);
+			assert(std::memcmp(uploadMem + curMeshletsTriangleOffset + curMTOffset, draw->meshletsData.triangles.data(), mTSize) == 0);
 
 			curMOffset += (uint32_t)mSize;
 			curMVOffset += (uint32_t)mVSize;
 			curMTOffset += (uint32_t)Math::AlignUp(mTSize, 4);
 		}
 
+		assert(curMOffset == groupMeshletsSize);
+		assert(curMVOffset == groupMeshletsVertexSize);
+		assert(curMTOffset == groupMeshletsTriangleSize);
+
 		curVBOffset += (uint32_t)vbSize;
 		curDepthVBOffset += (uint32_t)vbDepthSize;
 		curIBOffset += (uint32_t)Math::AlignUp(ibSize, 4);
 		curIndexOffset = Math::AlignUp(curIndexOffset, 4);
-		
+
 		curMeshletsOffset += (uint32_t)groupMeshletsSize;
 		curMeshletsVertexOffset += (uint32_t)groupMeshletsVertexSize;
 		curMeshletsTriangleOffset += (uint32_t)groupMeshletsTriangleSize;
@@ -317,7 +327,9 @@ void Renderer::CompileMesh(
 		meshList.push_back(mesh);
 	}
 	// bufferMemory references model.m_GeometryData. This appends geometry to ModelData.
+	size_t oldSize = bufferMemory.size();
 	bufferMemory.insert(bufferMemory.end(), stagingBuffer->begin(), stagingBuffer->end());
+	assert(std::memcmp(bufferMemory.data() + oldSize,stagingBuffer->data(),stagingBuffer->size()) == 0);
 }
 
 
