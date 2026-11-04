@@ -70,6 +70,10 @@ struct Mesh
     uint16_t startJoint;    // Flat offset to first joint index
     uint16_t numDraws;      // Number of draw groups
 
+    uint32_t meshletsOffset;            // Starting position of meshlets descriptors in m_GeometryData
+    uint32_t meshletsVertexOffset;      // Starting position of meshlets vertices in m_GeometryData
+    uint32_t meshletsTrianglesOffset;   // Starting position of meshlets triangles in m_GeometryData
+
     struct Draw
     {
         uint32_t primCount;   // Number of indices = 3 * number of triangles

@@ -106,7 +106,7 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 	// Resize and optimise the buffers.
 	const meshopt_Meshlet& last = prim.meshletsData.meshlets[meshletCount - 1];
 	prim.meshletsData.vertices.resize(last.vertex_offset + last.vertex_count);
-	prim.meshletsData.triangles.resize(last.triangle_offset + last.triangle_count);
+	prim.meshletsData.triangles.resize(last.triangle_offset + last.triangle_count * 3);
 
 	for (size_t i = 0; i < meshletCount; i++) {
 		const meshopt_Meshlet& m = prim.meshletsData.meshlets[i];
@@ -137,14 +137,17 @@ void Renderer::CompileMesh(
 	size_t totalVertexSize = 0;
 	size_t totalDepthVertexSize = 0;
 	size_t totalIndexSize = 0;
+	size_t totalMeshletsSize = 0;
+	size_t totalMeshletsVertexSize = 0;
+	size_t totalMeshletsTriangleSize = 0;
 
 	BoundingSphere sphereOS(kZero);
 	AxisAlignedBox bboxOS(kZero);
 	std::vector<Primitive> primitives(srcMesh.primitives.size());
 	for (uint32_t i = 0; i < primitives.size(); ++i)
 	{
-		GenerateMeshlets(primitives[i]);
 		OptimizeMesh(primitives[i], srcMesh.primitives[i], localToObject);
+		GenerateMeshlets(primitives[i]);
 		sphereOS = sphereOS.Union(primitives[i].m_BoundsOS);
 		bboxOS.AddBoundingBox(primitives[i].m_BBoxOS);
 	}
@@ -153,6 +156,16 @@ void Renderer::CompileMesh(
 	boundingBox = bboxOS;
 
 	// Group compatible primitives by hash (vertex format + material)
+	// Example:
+	//		renderMeshes
+	//		├── 1001
+	//		│   ├── &P0
+	//		│   └── &P2
+	//		├── 2005
+	//		│   ├── &P1
+	//		│   └── &P4
+	//		└── 3010
+	//			└── &P3
 	std::map<uint32_t, std::vector<Primitive*>> renderMeshes;
 	for (auto& prim : primitives)
 	{
@@ -161,9 +174,13 @@ void Renderer::CompileMesh(
 		totalVertexSize += prim.VB->size();
 		totalDepthVertexSize += prim.DepthVB->size();
 		totalIndexSize += Math::AlignUp(prim.IB->size(), 4);
+
+		totalMeshletsSize += prim.meshletsData.meshlets.size() * sizeof(meshopt_Meshlet);
+		totalMeshletsVertexSize += prim.meshletsData.vertices.size() * sizeof(unsigned int);
+		totalMeshletsTriangleSize += Math::AlignUp(prim.meshletsData.triangles.size(), 4);
 	}
 	// Compute total buffer size and allocate a staging buffer to hold all vertex/index data
-	uint32_t totalBufferSize = (uint32_t)(totalVertexSize + totalDepthVertexSize + totalIndexSize);
+	uint32_t totalBufferSize = (uint32_t)(totalVertexSize + totalDepthVertexSize + totalIndexSize + totalMeshletsSize + totalMeshletsVertexSize + totalMeshletsTriangleSize);
 
 	Utility::ByteArray stagingBuffer;
 	stagingBuffer.reset(new std::vector<byte>(totalBufferSize));
@@ -172,6 +189,9 @@ void Renderer::CompileMesh(
 	uint32_t curVBOffset = 0;
 	uint32_t curDepthVBOffset = (uint32_t)totalVertexSize;
 	uint32_t curIBOffset = curDepthVBOffset + (uint32_t)totalDepthVertexSize;
+	uint32_t curMeshletsOffset = curIBOffset + totalIndexSize;
+	uint32_t curMeshletsVertexOffset = curMeshletsOffset + totalMeshletsSize;
+	uint32_t curMeshletsTriangleOffset = curMeshletsVertexOffset + totalMeshletsVertexSize;
 
 	// Outer loop: Iterate over each group of compatible primitives
 	for (auto& iter : renderMeshes)
@@ -186,6 +206,10 @@ void Renderer::CompileMesh(
 		size_t vbDepthSize = 0;
 		size_t ibSize = 0;
 
+		size_t groupMeshletsSize = 0;
+		size_t groupMeshletsVertexSize = 0;
+		size_t groupMeshletsTriangleSize = 0;
+
 		// Compute local space bounding sphere for all submeshes
 		BoundingSphere collectiveSphere(kZero);
 
@@ -195,6 +219,10 @@ void Renderer::CompileMesh(
 			vbDepthSize += draw->DepthVB->size();
 			ibSize += draw->IB->size();
 			collectiveSphere = collectiveSphere.Union(draw->m_BoundsLS);
+
+			groupMeshletsSize += draw->meshletsData.meshlets.size() * sizeof(meshopt_Meshlet);
+			groupMeshletsVertexSize += draw->meshletsData.vertices.size() * sizeof(unsigned int);
+			groupMeshletsTriangleSize += Math::AlignUp(draw->meshletsData.triangles.size(), 4);
 		}
 		
 		// Fill in the Mesh structure
@@ -214,6 +242,15 @@ void Renderer::CompileMesh(
 		mesh->materialCBV = iter.second[0]->materialIdx;
 		mesh->psoFlags = iter.second[0]->psoFlags;
 		mesh->pso = 0xFFFF;
+
+		mesh->meshletsSize = (uint32_t)groupMeshletsSize;
+		mesh->meshletsVertexSize = (uint32_t)groupMeshletsVertexSize;
+		mesh->meshletsTriangleSize = (uint32_t)groupMeshletsTriangleSize;
+		
+		mesh->meshletsOffset = (uint32_t)bufferMemory.size() + curMeshletsOffset;
+		mesh->meshletsVertexOffset = (uint32_t)bufferMemory.size() + curMeshletsVertexOffset;
+		mesh->meshletsTriangleOffset = (uint32_t)bufferMemory.size() + curMeshletsTriangleOffset;
+
 		if (srcMesh.skin >= 0)
 		{
 			mesh->numJoints = 0xFFFF;
@@ -230,9 +267,13 @@ void Renderer::CompileMesh(
 		uint32_t drawIdx = 0;
 		uint32_t curVertOffset = 0;
 		uint32_t curIndexOffset = 0;
-
+		
+		uint32_t curMOffset = 0;
+		uint32_t curMVOffset = 0;
+		uint32_t curMTOffset = 0;
+		
 		// MSP TODO: For every Mesh::Draw, keep existing stuff but also upload generated meshlet descriptors, vertices and indices into the uploadMem.
-		// MSP: uploadMem -> bufferMemory -> .mini (SaveModel() and ModelLoader) -> UploadBuffer -> m_DataBuffer -> MeshShader.
+		// MSP: uploadMem -> bufferMemory (m_GeometryData) -> .mini (SaveModel() and ModelLoader) -> UploadBuffer -> m_DataBuffer -> MeshShader.
 		// Inner Loop: Prepares the individual draw groups and copies their geometry into the temporary byte buffer.
 		for (auto& draw : iter.second)
 		{
@@ -245,12 +286,33 @@ void Renderer::CompileMesh(
 			std::memcpy(uploadMem + curDepthVBOffset, draw->DepthVB->data(), draw->DepthVB->size());
 			std::memcpy(uploadMem + curIBOffset + curIndexOffset, draw->IB->data(), draw->IB->size());
 			curIndexOffset += (uint32_t)draw->IB->size() >> (draw->index32 + 1);
+
+
+			size_t mSize = draw->meshletsData.meshlets.size() * sizeof(meshopt_Meshlet);
+			size_t mVSize = draw->meshletsData.vertices.size() * sizeof(unsigned int);
+			size_t mTSize = draw->meshletsData.triangles.size() * sizeof(unsigned char);
+
+			d.meshletsCount = draw->meshletsData.meshlets.size();
+			d.meshletsOffset = curMOffset;
+			std::memcpy(uploadMem + curMeshletsOffset + curMOffset, draw->meshletsData.meshlets.data(), mSize);
+			d.meshletsVertexOffset = curMVOffset;
+			std::memcpy(uploadMem + curMeshletsVertexOffset + curMVOffset, draw->meshletsData.vertices.data(), mVSize);
+			d.meshletsTriangleOffset = curMTOffset;
+			std::memcpy(uploadMem + curMeshletsTriangleOffset + curMTOffset, draw->meshletsData.triangles.data(), mTSize);
+
+			curMOffset += (uint32_t)mSize;
+			curMVOffset += (uint32_t)mVSize;
+			curMTOffset += (uint32_t)Math::AlignUp(mTSize, 4);
 		}
 
 		curVBOffset += (uint32_t)vbSize;
 		curDepthVBOffset += (uint32_t)vbDepthSize;
 		curIBOffset += (uint32_t)Math::AlignUp(ibSize, 4);
 		curIndexOffset = Math::AlignUp(curIndexOffset, 4);
+		
+		curMeshletsOffset += (uint32_t)groupMeshletsSize;
+		curMeshletsVertexOffset += (uint32_t)groupMeshletsVertexSize;
+		curMeshletsTriangleOffset += (uint32_t)groupMeshletsTriangleSize;
 
 		meshList.push_back(mesh);
 	}
