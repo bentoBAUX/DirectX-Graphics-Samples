@@ -127,7 +127,7 @@ void Debug::ValidateMeshPacking(const std::vector<byte>& memory, const Mesh& mes
 			for (size_t i = 0; i < m.vertex_count; i++)
 			{
 				uint32_t vertexIndex = md.vertices[m.vertex_offset + i];
-				assert(vertexIndex < prim->VB->size()/prim->vertexStride);
+				assert(vertexIndex < prim->VB->size() / prim->vertexStride);
 			}
 
 			// Check local - Primitive vertex reference validity
@@ -139,7 +139,4 @@ void Debug::ValidateMeshPacking(const std::vector<byte>& memory, const Mesh& mes
 			}
 		}
 	}
-
 }
-
-void ValidateModelMemoryLayout(const std::vector<byte>& memory, const std::vector<Mesh*>& meshList) {}
