@@ -23,6 +23,7 @@
 #include "GraphicsCommon.h"
 #include "../Core/Utility.h"
 #include "../Core/Math/Common.h"
+#include "Debug.h"
 
 #include <fstream>
 #include <map>
@@ -116,7 +117,7 @@ void GenerateMeshlets(Renderer::Primitive& prim) {
 			m.vertex_count);
 	}
 	prim.meshletsData.meshlets.resize(meshletCount);
-	Utility::Printf("Generated %zu meshlets.\n", meshletCount);
+	// Utility::Printf("Generated %zu meshlets.\n", meshletCount);
 }
 
 void Renderer::CompileMesh(
@@ -193,10 +194,13 @@ void Renderer::CompileMesh(
 	uint32_t curMeshletsVertexOffset = curMeshletsOffset + totalMeshletsSize;
 	uint32_t curMeshletsTriangleOffset = curMeshletsVertexOffset + totalMeshletsVertexSize;
 
+	// DEBUG: Temporary debugging information that stores mesh-primitive pairs
+	struct MeshPrimitives { Mesh* mesh; std::vector<Primitive*> primitives;};
+	std::vector<MeshPrimitives> meshPrimitives;
+
 	// Outer loop: Iterate over each group of compatible primitives
 	for (auto& iter : renderMeshes)
 	{
-		// MSP TODO: Extend Mesh to include meshlets.
 		// This functions adds meshes to a list meshList.
 
 		// Construct Mesh 
@@ -272,7 +276,6 @@ void Renderer::CompileMesh(
 		uint32_t curMVOffset = 0;
 		uint32_t curMTOffset = 0;
 
-		// MSP TODO: For every Mesh::Draw, keep existing stuff but also upload generated meshlet descriptors, vertices and indices into the uploadMem.
 		// MSP: uploadMem -> bufferMemory (m_GeometryData) -> .mini (SaveModel() and ModelLoader) -> UploadBuffer -> m_DataBuffer -> MeshShader.
 		// Inner Loop: Prepares the individual draw groups and copies their geometry into the temporary byte buffer.
 		for (auto& draw : iter.second)
@@ -325,11 +328,19 @@ void Renderer::CompileMesh(
 		curMeshletsTriangleOffset += (uint32_t)groupMeshletsTriangleSize;
 
 		meshList.push_back(mesh);
+
+		// DEBUG: Add mesh-prim pair into the list
+		meshPrimitives.push_back({ mesh, iter.second });
 	}
 	// bufferMemory references model.m_GeometryData. This appends geometry to ModelData.
 	size_t oldSize = bufferMemory.size();
 	bufferMemory.insert(bufferMemory.end(), stagingBuffer->begin(), stagingBuffer->end());
 	assert(std::memcmp(bufferMemory.data() + oldSize,stagingBuffer->data(),stagingBuffer->size()) == 0);
+
+	// DEBUG: Validate local packing
+	for (const auto& pair : meshPrimitives) {
+		Debug::ValidateMeshPacking(bufferMemory, *pair.mesh, pair.primitives);
+	}
 }
 
 

@@ -6410,7 +6410,7 @@ class lexer : public lexer_base<BasicJsonType>
                        inclusive lower and upper bound, respectively
 
     @pre The passed list @a ranges must have 2, 4, or 6 elements; that is,
-         1, 2, or 3 pairs. This precondition is enforced by an assertion.
+         1, 2, or 3 pairs. This precondition is enforced by an .
 
     @return true if and only if no range violation was detected
     */

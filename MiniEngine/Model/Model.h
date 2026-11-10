@@ -79,13 +79,13 @@ struct Mesh
 
     struct Draw
     {
+        // Positions are relative to the parent Mesh's respective starting positions for each field in m_GeometryData.
         uint32_t primCount;   // Number of indices = 3 * number of triangles
         uint32_t startIndex;  // Offset to first index in index buffer 
         uint32_t baseVertex;  // Offset to first vertex in vertex buffer
 
         uint32_t meshletsCount;         // Number of meshlets the current Primitive has.
         
-        // Positions are relative to the parent Mesh's respective starting positions for each field in m_GeometryData.
         uint32_t meshletsOffset;        // Starting position of a Primitive's meshlets-descriptors.
         uint32_t meshletsVertexOffset;  // Starting position of a Primitive's meshlets-vertices.
         uint32_t meshletsTriangleOffset;// Starting position of a Primitive's meshlets-triangles.
