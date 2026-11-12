@@ -248,6 +248,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         // The geometry data is read from the .mini file and mapped into the upload buffer, which is then used to create a GPU buffer for the model's geometry data.
 		modelData.Create(L"Model Data Upload", header.geometrySize);
 
+        // Copies header.geometrySize bytes from the .mini current file position into the UploadBuffer.
 		inFile.read((char*)modelData.Map(), header.geometrySize);
 		modelData.Unmap();
 
