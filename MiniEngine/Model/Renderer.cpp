@@ -41,6 +41,8 @@
 #include "CompiledShaders/CutoutDepthPS.h"
 #include "CompiledShaders/SkyboxVS.h"
 #include "CompiledShaders/SkyboxPS.h"
+#include "CompiledShaders/MeshShader.h"
+#include "CompiledShaders/AmpShader.h"
 
 #pragma warning(disable:4319) // '~': zero extending 'uint32_t' to 'uint64_t' of greater size
 
@@ -68,7 +70,7 @@ namespace Renderer
     RootSignature m_RootSig;
     GraphicsPSO m_SkyboxPSO(L"Renderer: Skybox PSO");
     GraphicsPSO m_DefaultPSO(L"Renderer: Default PSO"); // Not finalized.  Used as a template.
-
+    MeshPSO m_MeshPSO(L"Renderer: MSP PSO");
     DescriptorHandle m_CommonTextures;
 }
 
@@ -200,6 +202,17 @@ void Renderer::Initialize(void)
     m_DefaultPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
     m_DefaultPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
     m_DefaultPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+
+    // Mesh Shader Pipeline PSO
+    m_MeshPSO.SetRootSignature(m_RootSig);
+    m_MeshPSO.SetRasterizerState(RasterizerDefault);
+    m_MeshPSO.SetBlendState(BlendDisable);
+    m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
+    m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
+    m_MeshPSO.SetAmpShader(g_pAmpShader, sizeof(g_pAmpShader));
+    m_MeshPSO.SetMeshShader(g_pMeshShader, sizeof(g_pMeshShader));
+    m_MeshPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+    // m_MeshPSO.Finalize();
 
     // Skybox PSO
 
