@@ -54,7 +54,7 @@ using namespace Renderer;
 
 namespace Renderer
 {
-	BoolVar SeparateZPass("Renderer/Separate Z Pass", true);
+	BoolVar SeparateZPass("Renderer/Separate Z Pass", false); // MSP TODO: Eventually create DepthMeshPSO to allow separate z pass
 
 	bool s_Initialized = false;
 
@@ -208,7 +208,7 @@ void Renderer::Initialize(void)
 
 	// MSP: Initialise Mesh Shader Pipeline PSO (setting attributes)
 	m_MeshPSO.SetRootSignature(m_RootSig);
-	m_MeshPSO.SetRasterizerState(RasterizerTwoSided);
+	m_MeshPSO.SetRasterizerState(RasterizerDefault);
 	m_MeshPSO.SetBlendState(BlendDisable);
 	m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
 	m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
@@ -661,6 +661,8 @@ void MeshSorter::RenderMeshes(
 			{
 			case kZPass:
 				context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				if (m_useMeshShaderPipeline)
+					context.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET); // MeshPSO RenderTargetFormats expects a ColorFormat and DepthFormat
 				context.SetDepthStencilTarget(m_DSV->GetDSV());
 				break;
 			case kOpaque:
@@ -723,7 +725,7 @@ void MeshSorter::RenderMeshes(
 			// Each sort key can reference a different PSO, meaning meshes can use different shader configurations 
 			// and pipeline states without requiring a separate switch for every mesh.
 			// MSP: Branch off default vs meshPSO here.
-			if (m_useMeshShaderPipeline)
+			if (m_useMeshShaderPipeline && m_CurrentPass == kOpaque && m_BatchType == kDefault)
 			{
 				context.SetPipelineState(m_MeshPSO);
 				Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList6> commandList6;

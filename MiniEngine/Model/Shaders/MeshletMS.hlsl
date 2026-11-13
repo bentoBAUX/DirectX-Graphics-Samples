@@ -13,5 +13,5 @@ void main(
     verts[1].position = float4(0.0, 0.5, 0.5, 1.0);
     verts[2].position = float4(0.5, -0.5, 0.5, 1.0);
 
-    triangles[0] = uint3(0, 1, 2);
+    triangles[0] = uint3(0, 2, 1); // Front side (CCW)
 }
