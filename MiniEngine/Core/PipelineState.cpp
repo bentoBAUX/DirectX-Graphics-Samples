@@ -238,6 +238,7 @@ void MeshPSO::Finalize()
 		ComPtr<ID3D12Device2> device2;
 
 		// Retrieves the ID3D12Device2 interface from MiniEngine's existing device.
+		// "Do you support the ID3D12Device2 interface? If so, give me a pointer to it."
 		ASSERT_SUCCEEDED(g_Device->QueryInterface(IID_PPV_ARGS(&device2)));
 
 		// 1. Convert D3DX12_MESH_SHADER_PIPELINE_STATE_DESC into a pipeline state stream.

@@ -1,11 +1,9 @@
-struct MSOutput
-{
-    float4 position : SV_Position;
-};
+#include "MeshletCommon.hlsli"
 
 [outputtopology("triangle")]
 [numthreads(1, 1, 1)]
 void main(
+    in payload Payload payload,
     out vertices MSOutput verts[3],
     out indices uint3 triangles[1])
 {

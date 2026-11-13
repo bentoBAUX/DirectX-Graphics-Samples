@@ -41,8 +41,10 @@
 #include "CompiledShaders/CutoutDepthPS.h"
 #include "CompiledShaders/SkyboxVS.h"
 #include "CompiledShaders/SkyboxPS.h"
-#include "CompiledShaders/MeshShader.h"
-#include "CompiledShaders/AmpShader.h"
+#include "CompiledShaders/MeshletAS.h"
+#include "CompiledShaders/MeshletMS.h"
+#include "CompiledShaders/MeshletPS.h"
+
 
 #pragma warning(disable:4319) // '~': zero extending 'uint32_t' to 'uint64_t' of greater size
 
@@ -209,10 +211,10 @@ void Renderer::Initialize(void)
     m_MeshPSO.SetBlendState(BlendDisable);
     m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
     m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
-    m_MeshPSO.SetAmpShader(g_pAmpShader, sizeof(g_pAmpShader));
-    m_MeshPSO.SetMeshShader(g_pMeshShader, sizeof(g_pMeshShader));
-    m_MeshPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
-    // m_MeshPSO.Finalize();
+    m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
+    m_MeshPSO.SetMeshShader(g_pMeshletMS, sizeof(g_pMeshletMS));
+    m_MeshPSO.SetPixelShader(g_pMeshletPS, sizeof(g_pMeshletPS));
+    m_MeshPSO.Finalize();
 
     // Skybox PSO
 
