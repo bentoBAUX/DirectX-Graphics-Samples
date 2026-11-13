@@ -65,6 +65,8 @@ private:
 
     ModelInstance m_ModelInst;
     ShadowCamera m_SunShadowCamera;
+
+    bool m_useMeshShaderPipeline = true;
 };
 
 CREATE_APPLICATION( ModelViewer )
@@ -296,7 +298,7 @@ void ModelViewer::RenderScene( void )
         gfxContext.TransitionResource(g_SceneDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE, true);
         gfxContext.ClearDepth(g_SceneDepthBuffer);
 
-        MeshSorter sorter(MeshSorter::kDefault);
+        MeshSorter sorter(MeshSorter::kDefault, m_useMeshShaderPipeline);
 		sorter.SetCamera(m_Camera);
 		sorter.SetViewport(viewport);
 		sorter.SetScissor(scissor);
@@ -324,7 +326,7 @@ void ModelViewer::RenderScene( void )
                 // Render the shadow map from sun's perspective (depth-only).
                 ScopedTimer _prof(L"Sun Shadow Map", gfxContext);
 
-                MeshSorter shadowSorter(MeshSorter::kShadows);
+                MeshSorter shadowSorter(MeshSorter::kShadows, m_useMeshShaderPipeline);
 				shadowSorter.SetCamera(m_SunShadowCamera);
 				shadowSorter.SetDepthStencilTarget(g_ShadowBuffer);
 
@@ -337,6 +339,7 @@ void ModelViewer::RenderScene( void )
             // Main colour rendering.
             gfxContext.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, true);
             gfxContext.ClearColor(g_SceneColorBuffer);
+
 
             {
                 ScopedTimer _prof(L"Render Color", gfxContext);

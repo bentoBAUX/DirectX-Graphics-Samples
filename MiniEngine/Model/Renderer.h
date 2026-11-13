@@ -74,7 +74,7 @@ namespace Renderer
 		enum BatchType { kDefault, kShadows };
         enum DrawPass { kZPass, kOpaque, kTransparent, kNumPasses };
 
-		MeshSorter(BatchType type)
+		MeshSorter(BatchType type, bool useMeshShaderPipeline)
 		{
 			m_BatchType = type;
 			m_Camera = nullptr;
@@ -87,6 +87,7 @@ namespace Renderer
 			std::memset(m_PassCounts, 0, sizeof(m_PassCounts));
 			m_CurrentPass = kZPass;
 			m_CurrentDraw = 0;
+            m_useMeshShaderPipeline = useMeshShaderPipeline;
 		}
 
 		void SetCamera( const BaseCamera& camera ) { m_Camera = &camera; }
@@ -152,6 +153,8 @@ namespace Renderer
 		uint32_t m_NumRTVs;
 		ColorBuffer* m_RTV[8];
 		DepthBuffer* m_DSV;
+
+        bool m_useMeshShaderPipeline;
 	};
 
 } // namespace Renderer

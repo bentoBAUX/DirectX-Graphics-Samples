@@ -54,457 +54,459 @@ using namespace Renderer;
 
 namespace Renderer
 {
-    BoolVar SeparateZPass("Renderer/Separate Z Pass", true);
+	BoolVar SeparateZPass("Renderer/Separate Z Pass", true);
 
-    bool s_Initialized = false;
+	bool s_Initialized = false;
 
-    DescriptorHeap s_TextureHeap;
-    DescriptorHeap s_SamplerHeap;
-    std::vector<GraphicsPSO> sm_PSOs;
+	DescriptorHeap s_TextureHeap;
+	DescriptorHeap s_SamplerHeap;
+	std::vector<GraphicsPSO> sm_PSOs;
 
-    TextureRef s_RadianceCubeMap;
-    TextureRef s_IrradianceCubeMap;
-    float s_SpecularIBLRange;
-    float s_SpecularIBLBias;
-    uint32_t g_SSAOFullScreenID;
-    uint32_t g_ShadowBufferID;
+	TextureRef s_RadianceCubeMap;
+	TextureRef s_IrradianceCubeMap;
+	float s_SpecularIBLRange;
+	float s_SpecularIBLBias;
+	uint32_t g_SSAOFullScreenID;
+	uint32_t g_ShadowBufferID;
 
-    RootSignature m_RootSig;
-    GraphicsPSO m_SkyboxPSO(L"Renderer: Skybox PSO");
-    GraphicsPSO m_DefaultPSO(L"Renderer: Default PSO"); // Not finalized.  Used as a template.
-    MeshPSO m_MeshPSO(L"Renderer: MSP PSO");
-    DescriptorHandle m_CommonTextures;
+	RootSignature m_RootSig;
+	GraphicsPSO m_SkyboxPSO(L"Renderer: Skybox PSO");
+	GraphicsPSO m_DefaultPSO(L"Renderer: Default PSO"); // Not finalized.  Used as a template.
+	MeshPSO m_MeshPSO(L"Renderer: MSP PSO");
+	DescriptorHandle m_CommonTextures;
 }
 
+// Establishes the base pipeline configurations
 void Renderer::Initialize(void)
 {
-    if (s_Initialized)
-        return;
+	if (s_Initialized)
+		return;
 
-    SamplerDesc DefaultSamplerDesc;
-    DefaultSamplerDesc.MaxAnisotropy = 8;
+	SamplerDesc DefaultSamplerDesc;
+	DefaultSamplerDesc.MaxAnisotropy = 8;
 
-    SamplerDesc CubeMapSamplerDesc = DefaultSamplerDesc;
-    //CubeMapSamplerDesc.MaxLOD = 6.0f;
+	SamplerDesc CubeMapSamplerDesc = DefaultSamplerDesc;
+	//CubeMapSamplerDesc.MaxLOD = 6.0f;
 
-    m_RootSig.Reset(kNumRootBindings, 3);
-    m_RootSig.InitStaticSampler(10, DefaultSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig.InitStaticSampler(11, SamplerShadowDesc, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig.InitStaticSampler(12, CubeMapSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig[kMeshConstants].InitAsConstantBuffer(0, D3D12_SHADER_VISIBILITY_VERTEX);
-    m_RootSig[kMaterialConstants].InitAsConstantBuffer(0, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig[kMaterialSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0, 10, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig[kMaterialSamplers].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 0, 10, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig[kCommonSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 10, D3D12_SHADER_VISIBILITY_PIXEL);
-    m_RootSig[kCommonCBV].InitAsConstantBuffer(1);
-    m_RootSig[kSkinMatrices].InitAsBufferSRV(20, D3D12_SHADER_VISIBILITY_VERTEX);
-    m_RootSig[kMeshletGeometry].InitAsBufferSRV(21, D3D12_SHADER_VISIBILITY_MESH);
-    m_RootSig.Finalize(L"RootSig", D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	m_RootSig.Reset(kNumRootBindings, 3);
+	m_RootSig.InitStaticSampler(10, DefaultSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig.InitStaticSampler(11, SamplerShadowDesc, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig.InitStaticSampler(12, CubeMapSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig[kMeshConstants].InitAsConstantBuffer(0, D3D12_SHADER_VISIBILITY_VERTEX);
+	m_RootSig[kMaterialConstants].InitAsConstantBuffer(0, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig[kMaterialSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0, 10, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig[kMaterialSamplers].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 0, 10, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig[kCommonSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 10, D3D12_SHADER_VISIBILITY_PIXEL);
+	m_RootSig[kCommonCBV].InitAsConstantBuffer(1);
+	m_RootSig[kSkinMatrices].InitAsBufferSRV(20, D3D12_SHADER_VISIBILITY_VERTEX);
+	m_RootSig[kMeshletGeometry].InitAsBufferSRV(21, D3D12_SHADER_VISIBILITY_MESH);
+	m_RootSig.Finalize(L"RootSig", D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-    DXGI_FORMAT ColorFormat = g_SceneColorBuffer.GetFormat();
-    DXGI_FORMAT DepthFormat = g_SceneDepthBuffer.GetFormat();
+	DXGI_FORMAT ColorFormat = g_SceneColorBuffer.GetFormat();
+	DXGI_FORMAT DepthFormat = g_SceneDepthBuffer.GetFormat();
 
-    D3D12_INPUT_ELEMENT_DESC posOnly[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    };
+	D3D12_INPUT_ELEMENT_DESC posOnly[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 
-    D3D12_INPUT_ELEMENT_DESC posAndUV[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    };
+	D3D12_INPUT_ELEMENT_DESC posAndUV[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 
-    D3D12_INPUT_ELEMENT_DESC skinPos[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    };
+	D3D12_INPUT_ELEMENT_DESC skinPos[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 
-    D3D12_INPUT_ELEMENT_DESC skinPosAndUV[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    };
+	D3D12_INPUT_ELEMENT_DESC skinPosAndUV[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 
-    ASSERT(sm_PSOs.size() == 0);
+	ASSERT(sm_PSOs.size() == 0);
 
-    // Depth Only PSOs
+	// Depth Only PSOs
 
-    GraphicsPSO DepthOnlyPSO(L"Renderer: Depth Only PSO");
-    DepthOnlyPSO.SetRootSignature(m_RootSig);
-    DepthOnlyPSO.SetRasterizerState(RasterizerDefault);
-    DepthOnlyPSO.SetBlendState(BlendDisable);
-    DepthOnlyPSO.SetDepthStencilState(DepthStateReadWrite);
-    DepthOnlyPSO.SetInputLayout(_countof(posOnly), posOnly);
-    DepthOnlyPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-    DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
-    DepthOnlyPSO.SetVertexShader(g_pDepthOnlyVS, sizeof(g_pDepthOnlyVS));
-    DepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(DepthOnlyPSO);
+	GraphicsPSO DepthOnlyPSO(L"Renderer: Depth Only PSO");
+	DepthOnlyPSO.SetRootSignature(m_RootSig);
+	DepthOnlyPSO.SetRasterizerState(RasterizerDefault);
+	DepthOnlyPSO.SetBlendState(BlendDisable);
+	DepthOnlyPSO.SetDepthStencilState(DepthStateReadWrite);
+	DepthOnlyPSO.SetInputLayout(_countof(posOnly), posOnly);
+	DepthOnlyPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+	DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
+	DepthOnlyPSO.SetVertexShader(g_pDepthOnlyVS, sizeof(g_pDepthOnlyVS));
+	DepthOnlyPSO.Finalize();
+	sm_PSOs.push_back(DepthOnlyPSO);
 
-    GraphicsPSO CutoutDepthPSO(L"Renderer: Cutout Depth PSO");
-    CutoutDepthPSO = DepthOnlyPSO;
-    CutoutDepthPSO.SetInputLayout(_countof(posAndUV), posAndUV);
-    CutoutDepthPSO.SetRasterizerState(RasterizerTwoSided);
-    CutoutDepthPSO.SetVertexShader(g_pCutoutDepthVS, sizeof(g_pCutoutDepthVS));
-    CutoutDepthPSO.SetPixelShader(g_pCutoutDepthPS, sizeof(g_pCutoutDepthPS));
-    CutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(CutoutDepthPSO);
+	GraphicsPSO CutoutDepthPSO(L"Renderer: Cutout Depth PSO");
+	CutoutDepthPSO = DepthOnlyPSO;
+	CutoutDepthPSO.SetInputLayout(_countof(posAndUV), posAndUV);
+	CutoutDepthPSO.SetRasterizerState(RasterizerTwoSided);
+	CutoutDepthPSO.SetVertexShader(g_pCutoutDepthVS, sizeof(g_pCutoutDepthVS));
+	CutoutDepthPSO.SetPixelShader(g_pCutoutDepthPS, sizeof(g_pCutoutDepthPS));
+	CutoutDepthPSO.Finalize();
+	sm_PSOs.push_back(CutoutDepthPSO);
 
-    GraphicsPSO SkinDepthOnlyPSO = DepthOnlyPSO;
-    SkinDepthOnlyPSO.SetInputLayout(_countof(skinPos), skinPos);
-    SkinDepthOnlyPSO.SetVertexShader(g_pDepthOnlySkinVS, sizeof(g_pDepthOnlySkinVS));
-    SkinDepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(SkinDepthOnlyPSO);
+	GraphicsPSO SkinDepthOnlyPSO = DepthOnlyPSO;
+	SkinDepthOnlyPSO.SetInputLayout(_countof(skinPos), skinPos);
+	SkinDepthOnlyPSO.SetVertexShader(g_pDepthOnlySkinVS, sizeof(g_pDepthOnlySkinVS));
+	SkinDepthOnlyPSO.Finalize();
+	sm_PSOs.push_back(SkinDepthOnlyPSO);
 
-    GraphicsPSO SkinCutoutDepthPSO = CutoutDepthPSO;
-    SkinCutoutDepthPSO.SetInputLayout(_countof(skinPosAndUV), skinPosAndUV);
-    SkinCutoutDepthPSO.SetVertexShader(g_pCutoutDepthSkinVS, sizeof(g_pCutoutDepthSkinVS));
-    SkinCutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(SkinCutoutDepthPSO);
+	GraphicsPSO SkinCutoutDepthPSO = CutoutDepthPSO;
+	SkinCutoutDepthPSO.SetInputLayout(_countof(skinPosAndUV), skinPosAndUV);
+	SkinCutoutDepthPSO.SetVertexShader(g_pCutoutDepthSkinVS, sizeof(g_pCutoutDepthSkinVS));
+	SkinCutoutDepthPSO.Finalize();
+	sm_PSOs.push_back(SkinCutoutDepthPSO);
 
-    ASSERT(sm_PSOs.size() == 4);
+	ASSERT(sm_PSOs.size() == 4);
 
-    // Shadow PSOs
+	// Shadow PSOs
 
-    DepthOnlyPSO.SetRasterizerState(RasterizerShadow);
-    DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    DepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(DepthOnlyPSO);
+	DepthOnlyPSO.SetRasterizerState(RasterizerShadow);
+	DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+	DepthOnlyPSO.Finalize();
+	sm_PSOs.push_back(DepthOnlyPSO);
 
-    CutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
-    CutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    CutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(CutoutDepthPSO);
+	CutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
+	CutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+	CutoutDepthPSO.Finalize();
+	sm_PSOs.push_back(CutoutDepthPSO);
 
-    SkinDepthOnlyPSO.SetRasterizerState(RasterizerShadow);
-    SkinDepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    SkinDepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(SkinDepthOnlyPSO);
+	SkinDepthOnlyPSO.SetRasterizerState(RasterizerShadow);
+	SkinDepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+	SkinDepthOnlyPSO.Finalize();
+	sm_PSOs.push_back(SkinDepthOnlyPSO);
 
-    SkinCutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
-    SkinCutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    SkinCutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(SkinCutoutDepthPSO);
+	SkinCutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
+	SkinCutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+	SkinCutoutDepthPSO.Finalize();
+	sm_PSOs.push_back(SkinCutoutDepthPSO);
 
-    ASSERT(sm_PSOs.size() == 8);
+	ASSERT(sm_PSOs.size() == 8);
 
-    // Default PSO
+	// Default PSO
 
-    m_DefaultPSO.SetRootSignature(m_RootSig);
-    m_DefaultPSO.SetRasterizerState(RasterizerDefault);
-    m_DefaultPSO.SetBlendState(BlendDisable);
-    m_DefaultPSO.SetDepthStencilState(DepthStateReadWrite);
-    m_DefaultPSO.SetInputLayout(0, nullptr);
-    m_DefaultPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-    m_DefaultPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
-    m_DefaultPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
-    m_DefaultPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+	m_DefaultPSO.SetRootSignature(m_RootSig);
+	m_DefaultPSO.SetRasterizerState(RasterizerDefault);
+	m_DefaultPSO.SetBlendState(BlendDisable);
+	m_DefaultPSO.SetDepthStencilState(DepthStateReadWrite);
+	m_DefaultPSO.SetInputLayout(0, nullptr);
+	m_DefaultPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+	m_DefaultPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
+	m_DefaultPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
+	m_DefaultPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
 
-    // Mesh Shader Pipeline PSO
-    m_MeshPSO.SetRootSignature(m_RootSig);
-    m_MeshPSO.SetRasterizerState(RasterizerDefault);
-    m_MeshPSO.SetBlendState(BlendDisable);
-    m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
-    m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
-    m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
-    m_MeshPSO.SetMeshShader(g_pMeshletMS, sizeof(g_pMeshletMS));
-    m_MeshPSO.SetPixelShader(g_pMeshletPS, sizeof(g_pMeshletPS));
-    m_MeshPSO.Finalize();
+	// MSP: Initialise Mesh Shader Pipeline PSO (setting attributes)
+	m_MeshPSO.SetRootSignature(m_RootSig);
+	m_MeshPSO.SetRasterizerState(RasterizerTwoSided);
+	m_MeshPSO.SetBlendState(BlendDisable);
+	m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
+	m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
+	m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
+	m_MeshPSO.SetMeshShader(g_pMeshletMS, sizeof(g_pMeshletMS));
+	m_MeshPSO.SetPixelShader(g_pMeshletPS, sizeof(g_pMeshletPS));
+	m_MeshPSO.Finalize();
 
-    // Skybox PSO
+	// Skybox PSO
 
-    m_SkyboxPSO = m_DefaultPSO;
-    m_SkyboxPSO.SetDepthStencilState(DepthStateReadOnly);
-    m_SkyboxPSO.SetInputLayout(0, nullptr);
-    m_SkyboxPSO.SetVertexShader(g_pSkyboxVS, sizeof(g_pSkyboxVS));
-    m_SkyboxPSO.SetPixelShader(g_pSkyboxPS, sizeof(g_pSkyboxPS));
-    m_SkyboxPSO.Finalize();
+	m_SkyboxPSO = m_DefaultPSO;
+	m_SkyboxPSO.SetDepthStencilState(DepthStateReadOnly);
+	m_SkyboxPSO.SetInputLayout(0, nullptr);
+	m_SkyboxPSO.SetVertexShader(g_pSkyboxVS, sizeof(g_pSkyboxVS));
+	m_SkyboxPSO.SetPixelShader(g_pSkyboxPS, sizeof(g_pSkyboxPS));
+	m_SkyboxPSO.Finalize();
 
-    TextureManager::Initialize(L"");
+	TextureManager::Initialize(L"");
 
-    s_TextureHeap.Create(L"Scene Texture Descriptors", D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4096);
+	s_TextureHeap.Create(L"Scene Texture Descriptors", D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4096);
 
-    // Maybe only need 2 for wrap vs. clamp?  Currently we allocate 1 for 1 with textures
-    s_SamplerHeap.Create(L"Scene Sampler Descriptors", D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
+	// Maybe only need 2 for wrap vs. clamp?  Currently we allocate 1 for 1 with textures
+	s_SamplerHeap.Create(L"Scene Sampler Descriptors", D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
 
-    Lighting::InitializeResources();
+	Lighting::InitializeResources();
 
-    // Allocate a descriptor table for the common textures
-    m_CommonTextures = s_TextureHeap.Alloc(8);
+	// Allocate a descriptor table for the common textures
+	m_CommonTextures = s_TextureHeap.Alloc(8);
 
-    uint32_t DestCount = 8;
-    uint32_t SourceCounts[] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+	uint32_t DestCount = 8;
+	uint32_t SourceCounts[] = { 1, 1, 1, 1, 1, 1, 1, 1 };
 
-    D3D12_CPU_DESCRIPTOR_HANDLE SourceTextures[] =
-    {
-        GetDefaultTexture(kBlackCubeMap),
-        GetDefaultTexture(kBlackCubeMap),
-        g_SSAOFullScreen.GetSRV(),
-        g_ShadowBuffer.GetSRV(),
-        Lighting::m_LightBuffer.GetSRV(),
-        Lighting::m_LightShadowArray.GetSRV(),
-        Lighting::m_LightGrid.GetSRV(),
-        Lighting::m_LightGridBitMask.GetSRV(),
-    };
+	D3D12_CPU_DESCRIPTOR_HANDLE SourceTextures[] =
+	{
+		GetDefaultTexture(kBlackCubeMap),
+		GetDefaultTexture(kBlackCubeMap),
+		g_SSAOFullScreen.GetSRV(),
+		g_ShadowBuffer.GetSRV(),
+		Lighting::m_LightBuffer.GetSRV(),
+		Lighting::m_LightShadowArray.GetSRV(),
+		Lighting::m_LightGrid.GetSRV(),
+		Lighting::m_LightGridBitMask.GetSRV(),
+	};
 
-    g_Device->CopyDescriptors(1, &m_CommonTextures, &DestCount, DestCount, SourceTextures, SourceCounts, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	g_Device->CopyDescriptors(1, &m_CommonTextures, &DestCount, DestCount, SourceTextures, SourceCounts, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    g_SSAOFullScreenID = g_SSAOFullScreen.GetVersionID();
-    g_ShadowBufferID = g_ShadowBuffer.GetVersionID();
+	g_SSAOFullScreenID = g_SSAOFullScreen.GetVersionID();
+	g_ShadowBufferID = g_ShadowBuffer.GetVersionID();
 
-    s_Initialized = true;
+	s_Initialized = true;
 }
 
 void Renderer::UpdateGlobalDescriptors(void)
 {
-    if (g_SSAOFullScreenID == g_SSAOFullScreen.GetVersionID() &&
-        g_ShadowBufferID == g_ShadowBuffer.GetVersionID())
-    {
-        return;
-    }
+	if (g_SSAOFullScreenID == g_SSAOFullScreen.GetVersionID() &&
+		g_ShadowBufferID == g_ShadowBuffer.GetVersionID())
+	{
+		return;
+	}
 
-    uint32_t DestCount = 2;
-    uint32_t SourceCounts[] = { 1, 1 };
+	uint32_t DestCount = 2;
+	uint32_t SourceCounts[] = { 1, 1 };
 
-    D3D12_CPU_DESCRIPTOR_HANDLE SourceTextures[] =
-    {
-        g_SSAOFullScreen.GetSRV(),
-        g_ShadowBuffer.GetSRV(),
-    };
+	D3D12_CPU_DESCRIPTOR_HANDLE SourceTextures[] =
+	{
+		g_SSAOFullScreen.GetSRV(),
+		g_ShadowBuffer.GetSRV(),
+	};
 
-    DescriptorHandle dest = m_CommonTextures + 2 * s_TextureHeap.GetDescriptorSize();
+	DescriptorHandle dest = m_CommonTextures + 2 * s_TextureHeap.GetDescriptorSize();
 
-    g_Device->CopyDescriptors(1, &dest, &DestCount, DestCount, SourceTextures, SourceCounts, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	g_Device->CopyDescriptors(1, &dest, &DestCount, DestCount, SourceTextures, SourceCounts, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    g_SSAOFullScreenID = g_SSAOFullScreen.GetVersionID();
-    g_ShadowBufferID = g_ShadowBuffer.GetVersionID();
+	g_SSAOFullScreenID = g_SSAOFullScreen.GetVersionID();
+	g_ShadowBufferID = g_ShadowBuffer.GetVersionID();
 
 }
 
 void Renderer::SetIBLTextures(TextureRef diffuseIBL, TextureRef specularIBL)
 {
-    s_RadianceCubeMap = specularIBL;
-    s_IrradianceCubeMap = diffuseIBL;
+	s_RadianceCubeMap = specularIBL;
+	s_IrradianceCubeMap = diffuseIBL;
 
-    s_SpecularIBLRange = 0.0f;
-    if (s_RadianceCubeMap.IsValid())
-    {
-        ID3D12Resource* texRes = const_cast<ID3D12Resource*>(s_RadianceCubeMap.Get()->GetResource());
-        const D3D12_RESOURCE_DESC& texDesc = texRes->GetDesc();
-        s_SpecularIBLRange = Max(0.0f, (float)texDesc.MipLevels - 1);
-        s_SpecularIBLBias = Min(s_SpecularIBLBias, s_SpecularIBLRange);
-    }
+	s_SpecularIBLRange = 0.0f;
+	if (s_RadianceCubeMap.IsValid())
+	{
+		ID3D12Resource* texRes = const_cast<ID3D12Resource*>(s_RadianceCubeMap.Get()->GetResource());
+		const D3D12_RESOURCE_DESC& texDesc = texRes->GetDesc();
+		s_SpecularIBLRange = Max(0.0f, (float)texDesc.MipLevels - 1);
+		s_SpecularIBLBias = Min(s_SpecularIBLBias, s_SpecularIBLRange);
+	}
 
-    uint32_t DestCount = 2;
-    uint32_t SourceCounts[] = { 1, 1 };
+	uint32_t DestCount = 2;
+	uint32_t SourceCounts[] = { 1, 1 };
 
-    D3D12_CPU_DESCRIPTOR_HANDLE SourceTextures[] =
-    {
-        specularIBL.IsValid() ? specularIBL.GetSRV() : GetDefaultTexture(kBlackCubeMap),
-        diffuseIBL.IsValid() ? diffuseIBL.GetSRV() : GetDefaultTexture(kBlackCubeMap)
-    };
+	D3D12_CPU_DESCRIPTOR_HANDLE SourceTextures[] =
+	{
+		specularIBL.IsValid() ? specularIBL.GetSRV() : GetDefaultTexture(kBlackCubeMap),
+		diffuseIBL.IsValid() ? diffuseIBL.GetSRV() : GetDefaultTexture(kBlackCubeMap)
+	};
 
-    g_Device->CopyDescriptors(1, &m_CommonTextures, &DestCount, DestCount, SourceTextures, SourceCounts, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	g_Device->CopyDescriptors(1, &m_CommonTextures, &DestCount, DestCount, SourceTextures, SourceCounts, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void Renderer::SetIBLBias(float LODBias)
 {
-    s_SpecularIBLBias = Min(LODBias, s_SpecularIBLRange);
+	s_SpecularIBLBias = Min(LODBias, s_SpecularIBLRange);
 }
 
 void Renderer::Shutdown(void)
 {
-    s_RadianceCubeMap = nullptr;
-    s_IrradianceCubeMap = nullptr;
-    TextureManager::Shutdown();
-    s_TextureHeap.Destroy();
-    s_SamplerHeap.Destroy();
+	s_RadianceCubeMap = nullptr;
+	s_IrradianceCubeMap = nullptr;
+	TextureManager::Shutdown();
+	s_TextureHeap.Destroy();
+	s_SamplerHeap.Destroy();
 }
 
+// Creates specialised PSOs for individual mesh requirements
 uint8_t Renderer::GetPSO(uint16_t psoFlags)
 {
-    using namespace PSOFlags;
+	using namespace PSOFlags;
 
-    GraphicsPSO ColorPSO = m_DefaultPSO;
+	GraphicsPSO ColorPSO = m_DefaultPSO;
 
-    uint16_t Requirements = kHasPosition | kHasNormal;
-    ASSERT((psoFlags & Requirements) == Requirements);
+	uint16_t Requirements = kHasPosition | kHasNormal;
+	ASSERT((psoFlags & Requirements) == Requirements);
 
-    std::vector<D3D12_INPUT_ELEMENT_DESC> vertexLayout;
-    if (psoFlags & kHasPosition)
-        vertexLayout.push_back({"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT});
-    if (psoFlags & kHasNormal)
-        vertexLayout.push_back({"NORMAL",   0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT});
-    if (psoFlags & kHasTangent)
-        vertexLayout.push_back({"TANGENT",  0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT});
-    if (psoFlags & kHasUV0)
-        vertexLayout.push_back({"TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT});
-    else
-        vertexLayout.push_back({"TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       1, D3D12_APPEND_ALIGNED_ELEMENT});
-    if (psoFlags & kHasUV1)
-        vertexLayout.push_back({"TEXCOORD", 1, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT});
-    if (psoFlags & kHasSkin)
-    {
-        vertexLayout.push_back({ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-        vertexLayout.push_back({ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-    }
+	std::vector<D3D12_INPUT_ELEMENT_DESC> vertexLayout;
+	if (psoFlags & kHasPosition)
+		vertexLayout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT });
+	if (psoFlags & kHasNormal)
+		vertexLayout.push_back({ "NORMAL",   0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
+	if (psoFlags & kHasTangent)
+		vertexLayout.push_back({ "TANGENT",  0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
+	if (psoFlags & kHasUV0)
+		vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
+	else
+		vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       1, D3D12_APPEND_ALIGNED_ELEMENT });
+	if (psoFlags & kHasUV1)
+		vertexLayout.push_back({ "TEXCOORD", 1, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
+	if (psoFlags & kHasSkin)
+	{
+		vertexLayout.push_back({ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+		vertexLayout.push_back({ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+	}
 
-    ColorPSO.SetInputLayout((uint32_t)vertexLayout.size(), vertexLayout.data());
+	ColorPSO.SetInputLayout((uint32_t)vertexLayout.size(), vertexLayout.data());
 
-    if (psoFlags & kHasSkin)
-    {
-        if (psoFlags & kHasTangent)
-        {
-            if (psoFlags & kHasUV1)
-            {
-                ColorPSO.SetVertexShader(g_pDefaultSkinVS, sizeof(g_pDefaultSkinVS));
-                ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
-            }
-            else
-            {
-                ColorPSO.SetVertexShader(g_pDefaultNoUV1SkinVS, sizeof(g_pDefaultNoUV1SkinVS));
-                ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
-            }
-        }
-        else
-        {
-            if (psoFlags & kHasUV1)
-            {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentSkinVS, sizeof(g_pDefaultNoTangentSkinVS));
-                ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
-            }
-            else
-            {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1SkinVS, sizeof(g_pDefaultNoTangentNoUV1SkinVS));
-                ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
-            }
-        }
-    }
-    else
-    {
-        if (psoFlags & kHasTangent)
-        {
-            if (psoFlags & kHasUV1)
-            {
-                ColorPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
-                ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
-            }
-            else
-            {
-                ColorPSO.SetVertexShader(g_pDefaultNoUV1VS, sizeof(g_pDefaultNoUV1VS));
-                ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
-            }
-        }
-        else
-        {
-            if (psoFlags & kHasUV1)
-            {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentVS, sizeof(g_pDefaultNoTangentVS));
-                ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
-            }
-            else
-            {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1VS, sizeof(g_pDefaultNoTangentNoUV1VS));
-                ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
-            }
-        }
-    }
+	if (psoFlags & kHasSkin)
+	{
+		if (psoFlags & kHasTangent)
+		{
+			if (psoFlags & kHasUV1)
+			{
+				ColorPSO.SetVertexShader(g_pDefaultSkinVS, sizeof(g_pDefaultSkinVS));
+				ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+			}
+			else
+			{
+				ColorPSO.SetVertexShader(g_pDefaultNoUV1SkinVS, sizeof(g_pDefaultNoUV1SkinVS));
+				ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
+			}
+		}
+		else
+		{
+			if (psoFlags & kHasUV1)
+			{
+				ColorPSO.SetVertexShader(g_pDefaultNoTangentSkinVS, sizeof(g_pDefaultNoTangentSkinVS));
+				ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
+			}
+			else
+			{
+				ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1SkinVS, sizeof(g_pDefaultNoTangentNoUV1SkinVS));
+				ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
+			}
+		}
+	}
+	else
+	{
+		if (psoFlags & kHasTangent)
+		{
+			if (psoFlags & kHasUV1)
+			{
+				ColorPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
+				ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+			}
+			else
+			{
+				ColorPSO.SetVertexShader(g_pDefaultNoUV1VS, sizeof(g_pDefaultNoUV1VS));
+				ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
+			}
+		}
+		else
+		{
+			if (psoFlags & kHasUV1)
+			{
+				ColorPSO.SetVertexShader(g_pDefaultNoTangentVS, sizeof(g_pDefaultNoTangentVS));
+				ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
+			}
+			else
+			{
+				ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1VS, sizeof(g_pDefaultNoTangentNoUV1VS));
+				ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
+			}
+		}
+	}
 
-    if (psoFlags & kAlphaBlend)
-    {
-        ColorPSO.SetBlendState(BlendPreMultiplied);
-        ColorPSO.SetDepthStencilState(DepthStateReadOnly);
-    }
-    if (psoFlags & kTwoSided)
-    {
-        ColorPSO.SetRasterizerState(RasterizerTwoSided);
-    }
-    ColorPSO.Finalize();
+	if (psoFlags & kAlphaBlend)
+	{
+		ColorPSO.SetBlendState(BlendPreMultiplied);
+		ColorPSO.SetDepthStencilState(DepthStateReadOnly);
+	}
+	if (psoFlags & kTwoSided)
+	{
+		ColorPSO.SetRasterizerState(RasterizerTwoSided);
+	}
+	ColorPSO.Finalize();
 
-    // Look for an existing PSO
-    for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
-    {
-        if (ColorPSO.GetPipelineStateObject() == sm_PSOs[i].GetPipelineStateObject())
-        {
-            return (uint8_t)i;
-        }
-    }
+	// Look for an existing PSO
+	for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
+	{
+		if (ColorPSO.GetPipelineStateObject() == sm_PSOs[i].GetPipelineStateObject())
+		{
+			return (uint8_t)i;
+		}
+	}
 
-    // If not found, keep the new one, and return its index
-    sm_PSOs.push_back(ColorPSO);
+	// If not found, keep the new one, and return its index
+	sm_PSOs.push_back(ColorPSO);
 
-    // The returned PSO index has read-write depth.  The index+1 tests for equal depth.
-    ColorPSO.SetDepthStencilState(DepthStateTestEqual);
-    ColorPSO.Finalize();
+	// The returned PSO index has read-write depth.  The index+1 tests for equal depth.
+	ColorPSO.SetDepthStencilState(DepthStateTestEqual);
+	ColorPSO.Finalize();
 #ifdef DEBUG
-    for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
-        ASSERT(ColorPSO.GetPipelineStateObject() != sm_PSOs[i].GetPipelineStateObject());
+	for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
+		ASSERT(ColorPSO.GetPipelineStateObject() != sm_PSOs[i].GetPipelineStateObject());
 #endif
-    sm_PSOs.push_back(ColorPSO);
+	sm_PSOs.push_back(ColorPSO);
 
-    ASSERT(sm_PSOs.size() <= 256, "Ran out of room for unique PSOs");
+	ASSERT(sm_PSOs.size() <= 256, "Ran out of room for unique PSOs");
 
-    return (uint8_t)sm_PSOs.size() - 2;
+	return (uint8_t)sm_PSOs.size() - 2;
 }
 
-void Renderer::DrawSkybox( GraphicsContext& gfxContext, const Camera& Camera, const D3D12_VIEWPORT& viewport, const D3D12_RECT& scissor )
+void Renderer::DrawSkybox(GraphicsContext& gfxContext, const Camera& Camera, const D3D12_VIEWPORT& viewport, const D3D12_RECT& scissor)
 {
-    ScopedTimer _prof(L"Draw Skybox", gfxContext);
+	ScopedTimer _prof(L"Draw Skybox", gfxContext);
 
-    __declspec(align(16)) struct SkyboxVSCB
-    {
-        Matrix4 ProjInverse;
-        Matrix3 ViewInverse;
-    } skyVSCB;
-    skyVSCB.ProjInverse = Invert(Camera.GetProjMatrix());
-    skyVSCB.ViewInverse = Invert(Camera.GetViewMatrix()).Get3x3();
+	__declspec(align(16)) struct SkyboxVSCB
+	{
+		Matrix4 ProjInverse;
+		Matrix3 ViewInverse;
+	} skyVSCB;
+	skyVSCB.ProjInverse = Invert(Camera.GetProjMatrix());
+	skyVSCB.ViewInverse = Invert(Camera.GetViewMatrix()).Get3x3();
 
-    __declspec(align(16)) struct SkyboxPSCB
-    {
-        float TextureLevel;
-    } skyPSCB;
-    skyPSCB.TextureLevel = s_SpecularIBLBias;
+	__declspec(align(16)) struct SkyboxPSCB
+	{
+		float TextureLevel;
+	} skyPSCB;
+	skyPSCB.TextureLevel = s_SpecularIBLBias;
 
-    gfxContext.SetRootSignature(m_RootSig);
-    gfxContext.SetPipelineState(m_SkyboxPSO);
+	gfxContext.SetRootSignature(m_RootSig);
+	gfxContext.SetPipelineState(m_SkyboxPSO);
 
-    gfxContext.TransitionResource(g_SceneDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_READ);
-    gfxContext.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, true);
-    gfxContext.SetRenderTarget(g_SceneColorBuffer.GetRTV(), g_SceneDepthBuffer.GetDSV_DepthReadOnly());
-    gfxContext.SetViewportAndScissor(viewport, scissor);
+	gfxContext.TransitionResource(g_SceneDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_READ);
+	gfxContext.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, true);
+	gfxContext.SetRenderTarget(g_SceneColorBuffer.GetRTV(), g_SceneDepthBuffer.GetDSV_DepthReadOnly());
+	gfxContext.SetViewportAndScissor(viewport, scissor);
 
-    gfxContext.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer());
-    gfxContext.SetDynamicConstantBufferView(kMeshConstants, sizeof(SkyboxVSCB), &skyVSCB);
-    gfxContext.SetDynamicConstantBufferView(kMaterialConstants, sizeof(SkyboxPSCB), &skyPSCB);
-    gfxContext.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
-    gfxContext.Draw(3);
+	gfxContext.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer());
+	gfxContext.SetDynamicConstantBufferView(kMeshConstants, sizeof(SkyboxVSCB), &skyVSCB);
+	gfxContext.SetDynamicConstantBufferView(kMaterialConstants, sizeof(SkyboxPSCB), &skyPSCB);
+	gfxContext.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
+	gfxContext.Draw(3);
 }
 
-void MeshSorter::AddMesh( const Mesh& mesh, float distance,
-    D3D12_GPU_VIRTUAL_ADDRESS meshCBV,
-    D3D12_GPU_VIRTUAL_ADDRESS materialCBV,
-    D3D12_GPU_VIRTUAL_ADDRESS bufferPtr,
-    const Joint* skeleton)
+void MeshSorter::AddMesh(const Mesh& mesh, float distance,
+	D3D12_GPU_VIRTUAL_ADDRESS meshCBV,
+	D3D12_GPU_VIRTUAL_ADDRESS materialCBV,
+	D3D12_GPU_VIRTUAL_ADDRESS bufferPtr,
+	const Joint* skeleton)
 {
-    SortKey key;
-    key.value = m_SortObjects.size();
+	SortKey key;
+	key.value = m_SortObjects.size();
 
 	bool alphaBlend = (mesh.psoFlags & PSOFlags::kAlphaBlend) == PSOFlags::kAlphaBlend;
-    bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
-    bool skinned = (mesh.psoFlags & PSOFlags::kHasSkin) == PSOFlags::kHasSkin;
-    uint64_t depthPSO = (skinned ? 2 : 0) + (alphaTest ? 1 : 0);
+	bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
+	bool skinned = (mesh.psoFlags & PSOFlags::kHasSkin) == PSOFlags::kHasSkin;
+	uint64_t depthPSO = (skinned ? 2 : 0) + (alphaTest ? 1 : 0);
 
-    // Potentially dangerous way of converting a float to an int. Float must always be positive and int unsigned.
-    union float_or_int { float f; uint32_t u; } dist;
-    dist.f = Max(distance, 0.0f);
-     
+	// Potentially dangerous way of converting a float to an int. Float must always be positive and int unsigned.
+	union float_or_int { float f; uint32_t u; } dist;
+	dist.f = Max(distance, 0.0f);
+
 	// Choosing render pass and PSO index based on mesh properties and batch type
-    // Shadow Rendering
+	// Shadow Rendering
 	if (m_BatchType == kShadows)
 	{
 		if (alphaBlend)
@@ -512,80 +514,80 @@ void MeshSorter::AddMesh( const Mesh& mesh, float distance,
 
 		key.passID = kZPass;
 		key.psoIdx = depthPSO + 4; // Indices 4-7 are for shadow PSOs
-        key.key = dist.u;
+		key.key = dist.u;
 		m_SortKeys.push_back(key.value);
 		m_PassCounts[kZPass]++;
 	}
-    // Transparent Meshes Rendering
-    else if (mesh.psoFlags & PSOFlags::kAlphaBlend)
-    {
-        key.passID = kTransparent;
-        key.psoIdx = mesh.pso;
+	// Transparent Meshes Rendering
+	else if (mesh.psoFlags & PSOFlags::kAlphaBlend)
+	{
+		key.passID = kTransparent;
+		key.psoIdx = mesh.pso;
 		key.key = ~dist.u; // Invert the distance for transparent objects so that they are sorted back-to-front
-        m_SortKeys.push_back(key.value);
-        m_PassCounts[kTransparent]++;
-    }
-    else if (SeparateZPass || alphaTest)
-    {   
-        // Depth Pass
-        key.passID = kZPass;
-        key.psoIdx = depthPSO;
-        key.key = dist.u;
-        m_SortKeys.push_back(key.value);
-        m_PassCounts[kZPass]++;
+		m_SortKeys.push_back(key.value);
+		m_PassCounts[kTransparent]++;
+	}
+	else if (SeparateZPass || alphaTest)
+	{
+		// Depth Pass
+		key.passID = kZPass;
+		key.psoIdx = depthPSO;
+		key.key = dist.u;
+		m_SortKeys.push_back(key.value);
+		m_PassCounts[kZPass]++;
 
-        // Colour Pass
-        key.passID = kOpaque;
-        key.psoIdx = mesh.pso + 1; // Colour rendering only where depth matches the pre-pass (No fucking diff at the end of the day)
-        key.key = dist.u;
-        m_SortKeys.push_back(key.value);
-        m_PassCounts[kOpaque]++;
-    }
-    else
-    {
-        key.passID = kOpaque;
-        key.psoIdx = mesh.pso; // Normal colour rendering with depth testing/writing
-        key.key = dist.u;
-        m_SortKeys.push_back(key.value);
-        m_PassCounts[kOpaque]++;
-    }
+		// Colour Pass
+		key.passID = kOpaque;
+		key.psoIdx = mesh.pso + 1; // Colour rendering only where depth matches the pre-pass (No fucking diff at the end of the day)
+		key.key = dist.u;
+		m_SortKeys.push_back(key.value);
+		m_PassCounts[kOpaque]++;
+	}
+	else
+	{
+		key.passID = kOpaque;
+		key.psoIdx = mesh.pso; // Normal colour rendering with depth testing/writing
+		key.key = dist.u;
+		m_SortKeys.push_back(key.value);
+		m_PassCounts[kOpaque]++;
+	}
 
-    SortObject object = { &mesh, skeleton, meshCBV, materialCBV, bufferPtr };
-    m_SortObjects.push_back(object);
+	SortObject object = { &mesh, skeleton, meshCBV, materialCBV, bufferPtr };
+	m_SortObjects.push_back(object);
 }
 
 void MeshSorter::Sort()
 {
-    struct { bool operator()(uint64_t a, uint64_t b) const { return a < b; } } Cmp;
-    std::sort(m_SortKeys.begin(), m_SortKeys.end(), Cmp);
+	struct { bool operator()(uint64_t a, uint64_t b) const { return a < b; } } Cmp;
+	std::sort(m_SortKeys.begin(), m_SortKeys.end(), Cmp);
 }
 
 void MeshSorter::RenderMeshes(
-    DrawPass pass,
-    GraphicsContext& context,
-    GlobalConstants& globals)
+	DrawPass pass,
+	GraphicsContext& context,
+	GlobalConstants& globals)
 {
-    // 1. Configure common graphics pipeline state and global shader resources
+	// 1. Configure common graphics pipeline state and global shader resources
 	ASSERT(m_DSV != nullptr);
 
-    Renderer::UpdateGlobalDescriptors();
+	Renderer::UpdateGlobalDescriptors();
 
 	context.SetRootSignature(m_RootSig); // Define how the shaders will access resources (textures, buffers, etc.)
 	context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // Configures input geometry as triangle lists
-    context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer()); // Makes descriptor heaps available for shader resource bindings
-    context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, s_SamplerHeap.GetHeapPointer());
+	context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer()); // Makes descriptor heaps available for shader resource bindings
+	context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, s_SamplerHeap.GetHeapPointer());
 
-    // Set common textures
-    context.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
+	// Set common textures
+	context.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
 
-    // Set common shader constants
+	// Set common shader constants
 	globals.ViewProjMatrix = m_Camera->GetViewProjMatrix();
 	globals.CameraPos = m_Camera->GetPosition();
-    globals.IBLRange = s_SpecularIBLRange - s_SpecularIBLBias;
-    globals.IBLBias = s_SpecularIBLBias;
+	globals.IBLRange = s_SpecularIBLRange - s_SpecularIBLBias;
+	globals.IBLBias = s_SpecularIBLBias;
 	context.SetDynamicConstantBufferView(kCommonCBV, sizeof(GlobalConstants), &globals);
 
-    // 2. Perform batch-specific render target and viewport/scissor setup.
+	// 2. Perform batch-specific render target and viewport/scissor setup.
 	if (m_BatchType == kShadows)
 	{
 		context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE, true);
@@ -632,29 +634,29 @@ void MeshSorter::RenderMeshes(
 		}
 	}
 
-    // 3. Process rendering passes and submit draw commands
-    // Process all rendering passes up to and including the specified pass.
-    // m_CurrentPass is initially set to kZPass by the constructor.
-    //
-    // In ModelViewer, RenderMeshes() is called three times:
-    // 1. kZPass:       Processes the depth pass, then advances to kOpaque.
-    // 2. kOpaque:      Processes the opaque pass, then advances to kTransparent.
-    // 3. kTransparent: Processes the transparent pass, then advances to the next pass.
-    //
-    // Since m_CurrentPass retains its value between calls, each pass is processed
-    // only once. Passes with no meshes (passCount == 0) are skipped.
-    //
-    // The loop therefore resumes where the previous RenderMeshes() call stopped,
-    // rather than starting from kZPass every time.
-    for ( ; m_CurrentPass <= pass; m_CurrentPass = (DrawPass)(m_CurrentPass + 1))
-    {
-        const uint32_t passCount = m_PassCounts[m_CurrentPass];
-        if (passCount == 0)
-            continue;
+	// 3. Process rendering passes and submit draw commands
+	// Process all rendering passes up to and including the specified pass.
+	// m_CurrentPass is initially set to kZPass by the constructor.
+	//
+	// In ModelViewer, RenderMeshes() is called three times:
+	// 1. kZPass:       Processes the depth pass, then advances to kOpaque.
+	// 2. kOpaque:      Processes the opaque pass, then advances to kTransparent.
+	// 3. kTransparent: Processes the transparent pass, then advances to the next pass.
+	//
+	// Since m_CurrentPass retains its value between calls, each pass is processed
+	// only once. Passes with no meshes (passCount == 0) are skipped.
+	//
+	// The loop therefore resumes where the previous RenderMeshes() call stopped,
+	// rather than starting from kZPass every time.
+	for (; m_CurrentPass <= pass; m_CurrentPass = (DrawPass)(m_CurrentPass + 1))
+	{
+		const uint32_t passCount = m_PassCounts[m_CurrentPass];
+		if (passCount == 0)
+			continue;
 
 		if (m_BatchType == kDefault)
 		{
-            // Current pass configuration
+			// Current pass configuration
 			switch (m_CurrentPass)
 			{
 			case kZPass:
@@ -683,70 +685,81 @@ void MeshSorter::RenderMeshes(
 			}
 		}
 
-        context.SetViewportAndScissor(m_Viewport, m_Scissor);
-        context.FlushResourceBarriers();
+		context.SetViewportAndScissor(m_Viewport, m_Scissor);
+		context.FlushResourceBarriers();
 
 		// If m_CurrentPass is kOpaque and m_CurrentDraw is 2, and there are 3 opaque entries, then lastDraw will be 5.  The loop will process indices 2, 3 and 4.
-        const uint32_t lastDraw = m_CurrentDraw + passCount;
+		const uint32_t lastDraw = m_CurrentDraw + passCount;
 
-        // Process the meshes belonging to the current rendering pass.
-        // m_CurrentDraw is initially set to 0 by the constructor.
-        //
-        // m_CurrentDraw tracks the current position in the sorted mesh queue (m_SortKeys).
-        // passCount tells us how many draw entries belong to the current pass.
-        // lastDraw marks the end of those entries.
-        // 
-        // Since m_CurrentDraw retains its value between RenderMeshes() calls,
-        // each call continues from where the previous one stopped.
-        while (m_CurrentDraw < lastDraw)
-        {
-            // Retrieve the next mesh for render using sort key.
-            SortKey key;
-            key.value = m_SortKeys[m_CurrentDraw];
-            const SortObject& object = m_SortObjects[key.objectIdx];
-            const Mesh& mesh = *object.mesh;
+		// Process the meshes belonging to the current rendering pass.
+		// m_CurrentDraw is initially set to 0 by the constructor.
+		//
+		// m_CurrentDraw tracks the current position in the sorted mesh queue (m_SortKeys).
+		// passCount tells us how many draw entries belong to the current pass.
+		// lastDraw marks the end of those entries.
+		// 
+		// Since m_CurrentDraw retains its value between RenderMeshes() calls,
+		// each call continues from where the previous one stopped.
+		while (m_CurrentDraw < lastDraw)
+		{
+			// Retrieve the next mesh for render using sort key.
+			SortKey key;
+			key.value = m_SortKeys[m_CurrentDraw];
+			const SortObject& object = m_SortObjects[key.objectIdx];
+			const Mesh& mesh = *object.mesh;
 
 			// Binds different mesh and material resources to the pipeline for each draw call.  
-            // Each mesh can have its own vertex/index buffers, constant buffers, and textures.
-            context.SetConstantBuffer(kMeshConstants, object.meshCBV);
-            context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
-            context.SetDescriptorTable(kMaterialSRVs, s_TextureHeap[mesh.srvTable]);
-            context.SetDescriptorTable(kMaterialSamplers, s_SamplerHeap[mesh.samplerTable]);
-            if (mesh.numJoints > 0)
-            {
-                ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
-                context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
-            }
+			// Each mesh can have its own vertex/index buffers, constant buffers, and textures.
+			context.SetConstantBuffer(kMeshConstants, object.meshCBV);
+			context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
+			context.SetDescriptorTable(kMaterialSRVs, s_TextureHeap[mesh.srvTable]);
+			context.SetDescriptorTable(kMaterialSamplers, s_SamplerHeap[mesh.samplerTable]);
+			if (mesh.numJoints > 0)
+			{
+				ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
+				context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
+			}
 
-            // Each sort key can reference a different PSO, meaning meshes can use different shader configurations 
-            // and pipeline states without requiring a separate switch for every mesh.
-            context.SetPipelineState(sm_PSOs[key.psoIdx]);
+			// Each sort key can reference a different PSO, meaning meshes can use different shader configurations 
+			// and pipeline states without requiring a separate switch for every mesh.
+			// MSP: Branch off default vs meshPSO here.
+			if (m_useMeshShaderPipeline)
+			{
+				context.SetPipelineState(m_MeshPSO);
+				Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList6> commandList6;
+				ASSERT_SUCCEEDED(context.GetCommandList()->QueryInterface(IID_PPV_ARGS(&commandList6)));
+				commandList6->DispatchMesh(1, 1, 1);
+			}
+			else 
+			{
+				context.SetPipelineState(sm_PSOs[key.psoIdx]);
+				// Selects different vertex data depending on the current pass.
+				if (m_CurrentPass == kZPass)
+				{
+					bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
+					uint32_t stride = alphaTest ? 16u : 12u;
+					if (mesh.numJoints > 0)
+						stride += 16;
+					
+					context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbDepthOffset, mesh.vbDepthSize, stride });
+				}
+				else
+				{
+					context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbOffset, mesh.vbSize, mesh.vbStride });
+				}
 
-            // Selects different vertex data depending on the current pass.
-            if (m_CurrentPass == kZPass)
-            {
-                bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
-                uint32_t stride = alphaTest ? 16u : 12u;
-                if (mesh.numJoints > 0)
-                    stride += 16;
-                context.SetVertexBuffer(0, {object.bufferPtr + mesh.vbDepthOffset, mesh.vbDepthSize, stride});
-            }
-            else
-            {
-                context.SetVertexBuffer(0, {object.bufferPtr + mesh.vbOffset, mesh.vbSize, mesh.vbStride});
-            }
+				// Binds the index buffer for the current mesh, allowing the GPU to correctly interpret the vertex data and draw the mesh geometry.
+				context.SetIndexBuffer({ object.bufferPtr + mesh.ibOffset, mesh.ibSize, (DXGI_FORMAT)mesh.ibFormat });
 
-			// Binds the index buffer for the current mesh, allowing the GPU to correctly interpret the vertex data and draw the mesh geometry.
-            context.SetIndexBuffer({object.bufferPtr + mesh.ibOffset, mesh.ibSize, (DXGI_FORMAT)mesh.ibFormat});
+				// Executes the draw call for the current mesh, using the specified number of indices and starting positions.
+				for (uint32_t i = 0; i < mesh.numDraws; ++i)
+					context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
 
-			// Executes the draw call for the current mesh, using the specified number of indices and starting positions.
-            for (uint32_t i = 0; i < mesh.numDraws; ++i)
+			}
+			++m_CurrentDraw;
 
-                context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
-
-            ++m_CurrentDraw;
-        }
-    }
+		}
+	}
 
 	if (m_BatchType == kShadows)
 	{

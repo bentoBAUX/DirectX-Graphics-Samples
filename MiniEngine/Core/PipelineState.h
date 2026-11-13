@@ -95,7 +95,7 @@ private:
 	std::shared_ptr<const D3D12_INPUT_ELEMENT_DESC> m_InputLayouts;
 };
 
-
+// MSP: Defining MeshPSO in PipelineState.h as a new PSO
 class MeshPSO : public PSO
 {
 	friend class CommandContext;
