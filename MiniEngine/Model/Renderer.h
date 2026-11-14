@@ -55,7 +55,8 @@ namespace Renderer
         kCommonCBV,
         kSkinMatrices,
         kMeshletGeometry,
-
+        kMeshletConstants,
+        kMeshMSConstants,
         kNumRootBindings
     };
 

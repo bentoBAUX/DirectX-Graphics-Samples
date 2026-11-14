@@ -99,7 +99,10 @@ void Renderer::Initialize(void)
 	m_RootSig[kCommonSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 10, D3D12_SHADER_VISIBILITY_PIXEL);
 	m_RootSig[kCommonCBV].InitAsConstantBuffer(1);
 	m_RootSig[kSkinMatrices].InitAsBufferSRV(20, D3D12_SHADER_VISIBILITY_VERTEX);
+
 	m_RootSig[kMeshletGeometry].InitAsBufferSRV(21, D3D12_SHADER_VISIBILITY_MESH);
+	m_RootSig[kMeshMSConstants].InitAsConstantBuffer(2, D3D12_SHADER_VISIBILITY_MESH);
+	m_RootSig[kMeshletConstants].InitAsConstants(22, 5, D3D12_SHADER_VISIBILITY_MESH);
 	m_RootSig.Finalize(L"RootSig", D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	DXGI_FORMAT ColorFormat = g_SceneColorBuffer.GetFormat();
@@ -212,7 +215,7 @@ void Renderer::Initialize(void)
 	m_MeshPSO.SetBlendState(BlendDisable);
 	m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
 	m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
-	m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
+	// m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
 	m_MeshPSO.SetMeshShader(g_pMeshletMS, sizeof(g_pMeshletMS));
 	m_MeshPSO.SetPixelShader(g_pMeshletPS, sizeof(g_pMeshletPS));
 	m_MeshPSO.Finalize();
@@ -730,9 +733,34 @@ void MeshSorter::RenderMeshes(
 				context.SetPipelineState(m_MeshPSO);
 				Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList6> commandList6;
 				ASSERT_SUCCEEDED(context.GetCommandList()->QueryInterface(IID_PPV_ARGS(&commandList6)));
-				commandList6->DispatchMesh(1, 1, 1);
+
+				for (uint32_t i = 0; i < mesh.numDraws; ++i)
+				{
+					const auto& draw = mesh.draw[i];
+
+					struct MeshDrawConstants
+					{
+						uint32_t descriptorOffset;
+						uint32_t meshletVertexIndicesOffset;
+						uint32_t meshletTriangleIndicesOffset;
+						uint32_t vertexBufferOffset;
+						uint32_t vertexStride;
+					};
+
+					MeshDrawConstants constants;
+					constants.descriptorOffset = mesh.meshletsOffset + draw.meshletsOffset;
+					constants.meshletVertexIndicesOffset = mesh.meshletsVertexOffset + draw.meshletsVertexOffset;
+					constants.meshletTriangleIndicesOffset = mesh.meshletsTriangleOffset + draw.meshletsTriangleOffset;
+					constants.vertexBufferOffset = mesh.vbOffset + draw.baseVertex * mesh.vbStride;
+					constants.vertexStride = mesh.vbStride;
+					
+					context.SetConstantBuffer(kMeshMSConstants, object.meshCBV);
+					commandList6->SetGraphicsRootShaderResourceView(kMeshletGeometry, object.bufferPtr);
+					commandList6->SetGraphicsRoot32BitConstants(kMeshletConstants, 5, &constants, 0);
+					commandList6->DispatchMesh(draw.meshletsCount, 1, 1);
+				}
 			}
-			else 
+			else
 			{
 				context.SetPipelineState(sm_PSOs[key.psoIdx]);
 				// Selects different vertex data depending on the current pass.
@@ -742,7 +770,7 @@ void MeshSorter::RenderMeshes(
 					uint32_t stride = alphaTest ? 16u : 12u;
 					if (mesh.numJoints > 0)
 						stride += 16;
-					
+
 					context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbDepthOffset, mesh.vbDepthSize, stride });
 				}
 				else

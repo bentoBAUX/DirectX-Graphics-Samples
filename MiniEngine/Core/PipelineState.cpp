@@ -250,7 +250,7 @@ void MeshPSO::Finalize()
 		streamDesc.pPipelineStateSubobjectStream = &psoStream;
 
 		// 3. Create the PSO.
-		ASSERT_SUCCEEDED(device2->CreatePipelineState(&streamDesc, MY_IID_PPV_ARGS(&m_PSO)));
+		ASSERT_SUCCEEDED(device2->CreatePipelineState(&streamDesc, IID_PPV_ARGS(&m_PSO)));
 		
 		s_MeshPSOHashMap[HashCode].Attach(m_PSO);
 		m_PSO->SetName(m_Name);
