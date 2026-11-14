@@ -211,7 +211,7 @@ void Renderer::Initialize(void)
 
 	// MSP: Initialise Mesh Shader Pipeline PSO (setting attributes)
 	m_MeshPSO.SetRootSignature(m_RootSig);
-	m_MeshPSO.SetRasterizerState(RasterizerDefault);
+	m_MeshPSO.SetRasterizerState(RasterizerTwoSided);
 	m_MeshPSO.SetBlendState(BlendDisable);
 	m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
 	m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
