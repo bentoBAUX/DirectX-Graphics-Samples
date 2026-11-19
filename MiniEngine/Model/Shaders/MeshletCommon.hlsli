@@ -1,9 +1,9 @@
 #ifndef MESHLET_COMMON_HLSLI
 #define MESHLET_COMMON_HLSLI
 
-struct Payload
+struct ASPayload
 {
-    uint placeholder;
+    uint meshletID;
 };
 
 struct MSOutput

@@ -59,6 +59,7 @@ float2 UnpackUV(uint address)
     return f16tof32(uint2(u, v));
 }
 
+// Renders the j-th meshlet in the i-th Primitive of a Mesh.
 // https://microsoft.github.io/DirectX-Specs/d3d/MeshShader.html?utm_source=chatgpt.com#hlsl-attributes-and-intrinsics
 // https://github.com/microsoft/DirectX-Graphics-Samples/blob/master/Samples/Desktop/D3D12MeshShaders/src/MeshletCull/MeshletMS.hlsl
 [outputtopology("triangle")]
@@ -66,11 +67,11 @@ float2 UnpackUV(uint address)
 void main(
     uint3 groupID : SV_GroupID,
     uint3 threadID : SV_GroupThreadID,
+    in payload ASPayload data,
     out vertices MSOutput verts[64],
     out indices uint3 triangles[126])
 {
-    
-    uint j = groupID.x;
+    uint j = data.meshletID;
     uint4 descriptor = Geometry.Load4(descriptorOffset + j * 16); // D(i,j) = mesh.meshletsOffset + mesh.draw[i].meshletsOffset + j * sizeof(meshopt_Meshlet)
 
     meshopt_Meshlet M_ij =
@@ -82,8 +83,7 @@ void main(
     };
     
     SetMeshOutputCounts(M_ij.vertex_count, M_ij.triangle_count);
-    
-    
+        
     MSOutput msOutput;
     
     uint Av_ij = meshletVertexIndicesOffset + M_ij.vertex_offset * 4;

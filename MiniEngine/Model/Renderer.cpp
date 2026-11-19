@@ -215,7 +215,7 @@ void Renderer::Initialize(void)
 	m_MeshPSO.SetBlendState(BlendDisable);
 	m_MeshPSO.SetDepthStencilState(DepthStateReadWrite);
 	m_MeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
-	// m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
+	m_MeshPSO.SetAmpShader(g_pMeshletAS, sizeof(g_pMeshletAS));
 	m_MeshPSO.SetMeshShader(g_pMeshletMS, sizeof(g_pMeshletMS));
 	m_MeshPSO.SetPixelShader(g_pMeshletPS, sizeof(g_pMeshletPS));
 	m_MeshPSO.Finalize();
